@@ -1,0 +1,6 @@
+Note about Da contributions:
+2019-07-09
+Nima Maftoon
+Da used Salome Platform for his developments and imported geompy into his Python program for vessel generation. His vessel generation was rule based.
+
+
