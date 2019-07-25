@@ -10,16 +10,18 @@ class VascularNetwork():
         self.leaves= range(1, len(leaves) + 1)
         for leaf_loc in leaves:
             self.add_branching_point(leaf_loc)
+        self.k = None
         self.c = 3
         self.mu = 2.8
         self.alpha = 1
-        self.r_0 = r_init
-        self.f_0 = f_init
+        self.r_0 = ((r_init ** self.c) / len(leaves)) ** (1 / self.c)
+        self.f_0 = f_init / len(leaves)
         self.p_0 = p_init
 
     def add_branching_point(self, loc, pres=None):
-        self.tree.add_node(self.node_count, loc=loc, pressure=pres)
+        self.tree.add_node(self.node_count, loc=loc, pressure=pres, HS=None)
         self.node_count += 1
+        return self.node_count - 1
 
     def add_vessel(self, node, neighbor_node, radius=None, flow=None):
         radius = self.r_0 if radius == None else radius
@@ -44,10 +46,11 @@ class VascularNetwork():
             self.tree.remove_edge(node1, n)
         self.add_vessel(node1, node2, r_sum ** (1 / self.c), f_sum)
 
-    def prune(self, condition):
+    def prune(self, l):
+        self.update_strahler_order()
         for edge in list(self.tree.edges):
-            if condition(edge):
-                node1, node2 = edge
+            node1, node2 = edge
+            if min(self.tree.nodes[node1]['HS'], self.tree.nodes[node2]['HS']) <= l:
                 self.tree.remove_edge(node1, node2)
         for node in list(self.tree.nodes):
             if len(list(self.tree.neighbors(node))) == 0 and node not in self.leaves and node != 0:
@@ -74,10 +77,7 @@ class VascularNetwork():
     def update_radius(self, edge, r_new):
         node1, node2 = edge
         self.tree[node1][node2]['radius'] = r_new
-
-    def update_flow(self, edge, f_new):
-        node1, node2 = edge
-        self.tree[node1][node2]['flow'] = f_new
+        self.tree[node1][node2]['flow'] = self.k * (r_new ** self.c)
 
     def get_radius_for_leaf(self, node):
         radii = np.array([self.tree[n][node]['radius'] for n in self.tree.neighbors(node)])
@@ -91,6 +91,22 @@ class VascularNetwork():
         max_f = np.max(flows)
         rest = np.sum(flows) - max_f
         return (max_f - rest)
+
+    def update_strahler_order(self):
+        for n in self.tree.nodes:        
+            self.tree.nodes[n]['HS'] = 1 if n.degree == 0 else 0
+        count_none = self.node_count
+        cur_order = 1
+        while count_none != 0:
+            for node in self.tree.nodes:
+                neighbor_orders = np.array([self.tree.nodes[n]['HS'] for n in self.tree.neighbors(node)])
+                if 0 in neighbor_orders:
+                    continue
+                max_order = np.max(neighbor_orders)
+                max_count = np.count_nonzero(neighbor_orders == max_order)
+                self.tree.nodes[node]['HS'] = max_order if max_count == 1 else max_order + 1
+            count_none = np.count_nonzero(np.array([self.tree.nodes[n]['HS'] for n in self.tree.nodes]) == 0)
+
 
     def get_conductance(self, edge):
         node1, node2 = edge
@@ -134,9 +150,3 @@ if __name__ == '__main__':
     plt.subplot(121)
     nx.draw(VN.tree, with_labels=True, font_weight='bold')
     plt.show()
-
-
-
-
-
-
