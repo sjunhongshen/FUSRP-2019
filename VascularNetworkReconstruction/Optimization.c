@@ -43,11 +43,7 @@ imax=i;
 cold=cost();
 
 cmin = SimAnneal(cold);
-for (i=1; i<=imax; i++)
-{
-	printf("%d\t%f %f %f\n", i, x[i],y[i],z[i]);
 
-}
 printf("\n\n\nThe optimum location of branching point is -\nx = %f\ty = %f\t z = %f\nCost = %f", x[imax], y[imax], z[imax], cmin);
 }
 
