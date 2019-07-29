@@ -7,7 +7,7 @@ dataPoints = [[3,4,1],[3,3,2],[6,8,5]]
 # first is the root
 
 #initial point is the average of the coordinates
-def ini_posit(dataoPoints):
+def ini_posit(dataPoints):
     tempX = 0.0
     tempY = 0.0
     tempZ = 0.0
