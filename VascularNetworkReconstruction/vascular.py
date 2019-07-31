@@ -1,9 +1,8 @@
-
 from scipy import *
 
 
-dataPoints = [[3, 4, 1], [3, 3, 2], [6, 8, 5]]  # first is the root
-ini_radius = [3, 2.96, 1]  # with Murray's Law
+dataPoints = [[2, 4, 1], [3, 3, 2], [6, 8, 5]]  # first is the root
+ini_radius = [3, 2, 1]  # with Murray's Law
 
 
 # initial point is the average of the coordinates
@@ -26,12 +25,13 @@ def cost(testMedian, dataPoints, testRadius):
     for i in range(0, len(dataPoints)):
         temp += math.sqrt((testMedian[0]-dataPoints[i][0])**2 +
                           (testMedian[1]-dataPoints[i][1])**2 +
-                          (testMedian[2]-dataPoints[i][2])**2) * testRadius[i] ** 2
+                          (testMedian[2]-dataPoints[i][2])**2) * (testRadius[i] ** 2)
     return temp
 
 
 # take gradient to decide the change of coordinates of each step
 def gradx(testMedian, dataPoints, testRadius):
+    testRadius[2] = (testRadius[0] ** 3 - testRadius[1] ** 3) ** (1/3)
     dx = 0.0
     for i in range(0, len(dataPoints)):
         dx += (testMedian[0] - dataPoints[i][0]) * testRadius[i] ** 2 / \
@@ -42,6 +42,7 @@ def gradx(testMedian, dataPoints, testRadius):
 
 
 def grady(testMedian, dataPoints, testRadius):
+    testRadius[2] = (testRadius[0] ** 3 - testRadius[1] ** 3) ** (1/3)
     dy = 0.0
     for i in range(0, len(dataPoints)):
         dy += (testMedian[1] - dataPoints[i][1]) * testRadius[i] ** 2 / \
@@ -52,6 +53,7 @@ def grady(testMedian, dataPoints, testRadius):
 
 
 def gradz(testMedian, dataPoints, testRadius):
+    testRadius[2] = (testRadius[0] ** 3 - testRadius[1] ** 3) ** (1/3)
     dz = 0.0
     for i in range(0, len(dataPoints)):
         dz += (testMedian[2] - dataPoints[i][2]) * testRadius[i] ** 2 / \
@@ -70,6 +72,7 @@ def gradient_posit(testMedian, dataPoints, testRadius):
 
 # the gradient of the radius
 def gradient_radiu(testMedian, dataPoints, testRadius):
+    testRadius[2] = (testRadius[0] ** 3 - testRadius[1] ** 3) ** (1/3)
     dr_1 = 0  # the main radius never change
     dr_2 = 2 * testRadius[1] * \
            math.sqrt((testMedian[0] - dataPoints[1][0])**2 +
@@ -85,8 +88,9 @@ def gradient_radiu(testMedian, dataPoints, testRadius):
 testMedian = ini_posit(dataPoints)  # starting position
 testRadius = ini_radius  # the initial radius of three vessels
 theta = 0.003  # step length
-loop_max = 10000  # maximum loop
-epsilon = 1e-6  # the precision
+loop_max = 20000  # maximum loop
+epsilon = 1e-7  # the precision
+
 
 for i in range(loop_max):
     cost1 = cost(testMedian, dataPoints, testRadius)
@@ -101,3 +105,4 @@ for i in range(loop_max):
         theta = theta * 0.3
 
 print(testMedian, testRadius)
+
