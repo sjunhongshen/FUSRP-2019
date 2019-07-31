@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-double cost();
+double CostCal();
 int move(double *, double *, double *, double, double, double, double);
 double SimAnneal(double);
 int maxmin (double *, double *, double *);
+
 double x[1000], y[1000], z[1000], xmin, ymin, zmin;
 int imax;
 
@@ -26,12 +27,13 @@ if(fp == NULL){
 i=0;
 while(!feof(fp))
 {
-	i++;
 	fscanf(fp,"%lf%*c%lf%*c%lf", &x[i], &y[i], &z[i]);
+    i++;
 }
-imax=i;
+fclose(fp);
+imax=i-1;
 
-    for (i=1; i<imax; i++)
+    for (i=0; i<imax; i++)
     {
         sumx = sumx + x[i];
         sumy = sumy + y[i];
@@ -40,7 +42,8 @@ imax=i;
     x[imax] = sumx/imax;
     y[imax] = sumy/imax;
     z[imax] = sumz/imax;
-cold=cost();
+
+cold=CostCal();
 
 cmin = SimAnneal(cold);
 
@@ -52,11 +55,24 @@ double SimAnneal(double cold)
     double pa, prob;
     double cmin = 1e+20, cnew, xnew, ynew, znew;
     double T = 1, a = 0.999;
-    int i, iter=0, O = 2;
+    int i, iter=0, O = 5;
     double rangex, rangey, rangez;
+    FILE *fp, *fp2;
+
     maxmin(&rangex, &rangey, &rangez);
 
-while (T>1e-3)
+    fp = fopen ("Data.csv","w");
+    if(fp == NULL){
+    printf("Couldn't open file\n");
+    return 1;
+    }
+
+    fp2 = fopen ("Cost.csv","w");
+    if(fp2 == NULL){
+    printf("Couldn't open file\n");
+    return 0;
+    }
+while (T>1e-5)
 {
     iter++;
     printf("iter = %d\n", iter);
@@ -64,7 +80,8 @@ while (T>1e-3)
     while (i<O)
     {
         move(&xnew, &ynew, &znew, rangex, rangey, rangez, T);
-        cnew = cost();
+        cnew = CostCal();
+
         if (cnew<cmin){
             cmin = cnew;
             xmin = xnew;
@@ -72,7 +89,7 @@ while (T>1e-3)
             zmin = znew;
         }
         prob = exp((cold-cnew)/T);
-        pa = ((double)rand() / (double)RAND_MAX) ;
+        pa = ((double)rand() / (double)RAND_MAX);
 
         if (prob>pa){
             x[imax]=xnew;
@@ -81,6 +98,8 @@ while (T>1e-3)
             cold= cnew;
             i++;
             printf("%d\t%f\t%f\n", i, T, cnew);
+            fprintf(fp, "%f,%f,%f\n", x[imax], y[imax], z[imax]);
+            fprintf(fp2, "%f\n", cold);
         }
     }
     T = T*a;
@@ -94,39 +113,46 @@ if (cmin<cnew){
 return cnew;
 }
 
-double cost ()
+double CostCal ()
 {
     int i;
-    double cost=0, lisq, c, li, r0 = 30, po, ri;
+    double cost=0, lisq, c, l[100], r[100], po, mc= 0, pc = 0, pcin;
 
-    po = r0/(double)(imax-2);
-    ri = pow (po, 1/3);
+    r[0] = 30;
+    po = r[0]/(double)(imax-1);
+
+for (i=0; i<imax; i++)
+{
+    if (i != 0){
+    r[i] = pow (po, 1.0/3.0);
+    }
+    lisq= pow((x[imax]-x[i]),2) + pow((y[imax]-y[i]),2) + pow((z[imax]-z[i]),2);
+    l[i] = sqrt (lisq);
+    mc += l[i]*pow(r[i], 2);
+}
+    cost = mc + (1e+3*l[0]*pow(r[0], -4));
+
 for (i=1; i<imax; i++)
 {
-    lisq= pow((x[imax]-x[i]),2) + pow((y[imax]-y[i]),2) + pow((z[imax]-z[i]),2);
-    li = sqrt (lisq);
-    if (i==1)
-        c= li*(pow(r0,2)+ pow(r0, -4));
-    else
-        c= li*(pow(ri,2)+ pow(ri, -4));
-    cost += c;
+    pcin = pow(r[i], 4)/l[i];
 }
+    pc = 1.0/ pcin;
+    cost += (1e+3*pc);
     return cost;
 }
 
 int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, double rangez, double T)
 {
-    int i;
-    *xnew = x[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.01*sqrt(T*rangex));
-    *ynew = y[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.01*sqrt(T*rangey));
-    *znew = z[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.01*sqrt(T*rangez));
+    *xnew = x[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangex));
+    *ynew = y[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangey));
+    *znew = z[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangez));
 }
 
 
 int maxmin(double *rangex, double *rangey, double *rangez)
 {
     int i;
-    double xmax=0, ymax=0, zmax=0, xmin = 1e+50, ymin=1e+50, zmin= 1e+50;
+    double xmax=0, ymax=0, zmax=0, xmin = x[0], ymin= y[0], zmin= z[0];
     for (i=1; i<imax; i++)
     {
         if (x[i]>xmax)
