@@ -126,8 +126,6 @@ a, b, c = cp
 # This evaluates a * x3 + b * y3 + c * z3 which equals d
 d = np.dot(cp, p3)
 
-print('The equation is {0}x + {1}y + {2}z = {3}'.format(a, b, c, d))
-
 x = np.linspace(-5,10,10)
 y = np.linspace(-5,10,10)
 
