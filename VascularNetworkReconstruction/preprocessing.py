@@ -5,6 +5,7 @@ from matplotlib.pyplot import imsave
 from PIL import Image
 import cv2
 import numpy as np
+from sklearn.preprocessing import normalize
 
 # input: batch_size * channel * height * width
 # output: batch_size * height * width * channel
@@ -19,10 +20,11 @@ def readNIfTI(filename):
     else:
         print("image array shape:")
         print(image_array.shape)
-    return output
+    return np.transpose(image_array, (2, 0, 1)), nibabel.load(filename).affine
 
-def writeNIfTI(data, path):
-    img = nibabel.Nifti1Image(data, np.eye(len(data.shape)))
+def writeNIfTI(data, path, affine):
+    print(np.eye(4))
+    img = nibabel.Nifti1Image(data, affine)
     nibabel.save(img, path)
     return
 
@@ -115,7 +117,7 @@ def histo_equalized(imgs):
     return imgs_equalized
 
 def clip_intensity(imgs, upper_limit):
-    imgs = np.clip(imgs, 0, upper_limit)
+    #imgs = np.clip(imgs, 0, upper_limit)
     imgs_normalized = np.empty(imgs.shape)
     imgs_std = np.std(imgs)
     imgs_mean = np.mean(imgs)
@@ -127,7 +129,8 @@ def clip_intensity(imgs, upper_limit):
 def raise_power(imgs, power):
     imgs_power = np.empty(imgs.shape)
     for i in range(imgs.shape[0]):
-        imgs_power[i, 0] = imgs[i, 0] ** power
+        #imgs_power[i, 0] = imgs[i, 0] ** power
+        imgs_power[i] = imgs[i] ** power
     return imgs_power
 
 # CLAHE (Contrast Limited Adaptive Histogram Equalization)
@@ -168,15 +171,123 @@ def adjust_gamma(imgs, gamma = 1.0):
     return new_imgs
 
 def preprocess(imgs):
-    imgs = np.transpose(imgs, (0, 3, 1, 2))
-    imgs_normalized = clip_intensity(imgs, 100)
+    print(imgs.shape)
+    #imgs = np.transpose(imgs, (0, 3, 1, 2))
+    print(imgs.shape)
+    imgs_normalized = clip_intensity(imgs, 200)
     imgs_power = raise_power(imgs_normalized, 3)
-    return np.transpose(imgs_power, (0, 2, 3, 1))
+    print(imgs_power.shape)
+    #return np.transpose(imgs_power, (0, 2, 3, 1))
+    return np.transpose(imgs_power, (1, 2, 0))
+
+import numpy as np
+
+from utils import divide_nonzero
+from hessian import absolute_hessian_eigenvalues
+
+
+def frangi(nd_array, scale_range=(1, 10), scale_step=2, alpha=0.5, beta=0.5, frangi_c=100, black_vessels=True):
+
+    if not nd_array.ndim == 3:
+        raise(ValueError("Only 3 dimensions is currently supported"))
+
+    # from https://github.com/scikit-image/scikit-image/blob/master/skimage/filters/_frangi.py#L74
+    sigmas = np.arange(scale_range[0], scale_range[1], scale_step)
+    if np.any(np.asarray(sigmas) < 0.0):
+        raise ValueError("Sigma values less than zero are not valid")
+
+    filtered_array = np.zeros(sigmas.shape + nd_array.shape)
+
+    for i, sigma in enumerate(sigmas):
+        eigenvalues = absolute_hessian_eigenvalues(nd_array, sigma=sigma, scale=True)
+        filtered_array[i] = compute_vesselness(*eigenvalues, alpha=alpha, beta=beta, c=frangi_c,
+                                               black_white=black_vessels)
+
+    return np.max(filtered_array, axis=0)
+
+
+def compute_measures(eigen1, eigen2, eigen3):
+    """
+    RA - plate-like structures
+    RB - blob-like structures
+    S - background
+    """
+    Ra = divide_nonzero(np.abs(eigen2), np.abs(eigen3))
+    Rb = divide_nonzero(np.abs(eigen1), np.sqrt(np.abs(np.multiply(eigen2, eigen3))))
+    S = np.sqrt(np.square(eigen1) + np.square(eigen2) + np.square(eigen3))
+    return Ra, Rb, S
+
+
+def compute_plate_like_factor(Ra, alpha):
+    return 1 - np.exp(np.negative(np.square(Ra)) / (2 * np.square(alpha)))
+
+
+def compute_blob_like_factor(Rb, beta):
+    return np.exp(np.negative(np.square(Rb) / (2 * np.square(beta))))
+
+
+def compute_background_factor(S, c):
+    return 1 - np.exp(np.negative(np.square(S)) / (2 * np.square(c)))
+
+
+def compute_vesselness(eigen1, eigen2, eigen3, alpha, beta, c, black_white):
+    Ra, Rb, S = compute_measures(eigen1, eigen2, eigen3)
+    plate = compute_plate_like_factor(Ra, alpha)
+    blob = compute_blob_like_factor(Rb, beta)
+    background = compute_background_factor(S, c)
+    return filter_out_background(plate * blob * background, black_white, eigen2, eigen3)
+
+
+def filter_out_background(voxel_data, black_white, eigen2, eigen3):
+    """
+    Set black_white to true if vessels are darker than the background and to false if
+    vessels are brighter than the background.
+    """
+    if black_white:
+        voxel_data[eigen2 < 0] = 0
+        voxel_data[eigen3 < 0] = 0
+    else:
+        voxel_data[eigen2 > 0] = 0
+        voxel_data[eigen3 > 0] = 0
+    voxel_data[np.isnan(voxel_data)] = 0
+    return voxel_data
 
 if __name__ == "__main__":
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.nii'
-    savepath = '/Users/kimihirochin/Desktop/mesh/sample1.nii.gz'
-    imgs = readNIfTI(filename)
+    savepath = '/Users/kimihirochin/Desktop/mesh/sample1_changed.nii.gz'
+    savepath2 = '/Users/kimihirochin/Desktop/mesh/prob.nii.gz'
+    imgs, aff = readNIfTI(filename)
+    print(aff)
+    imgs_preprocessed = preprocess(imgs)
+    writeNIfTI(imgs_preprocessed, savepath, aff)
+    exit()
+
+    from nipype.interfaces import brainsuite
+    from nipype.testing import example_data
+    bse = brainsuite.Bse()
+    print(bse)
+    bse.inputs.inputMRIFile = filename
+    results = bse.run() 
+    print(results)
+    imgs = nibabel.load(savepath2).get_data()
+    print(imgs.shape)
+    #imgs = np.squeeze(imgs, axis=(3,))
+    #ret = frangi(imgs)
+    ret = imgs
+    print(ret)        
+    print(np.max(ret))
+    print(np.count_nonzero(ret > 0.1))
+    ret = ret / np.max(ret)
+    var = np.var(ret)
+    print(ret.shape)        
+    print(np.max(ret))
+    print(np.count_nonzero(ret != 0))
+    print(var)
+    exit()
+
+
+
+
     imgs_preprocessed = preprocess(imgs)
     writeNIfTI(imgs_preprocessed, savepath)
     for i in range(imgs_preprocessed.shape[0]):
