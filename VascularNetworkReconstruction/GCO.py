@@ -11,9 +11,9 @@ class GCO():
         self.root_loc = root_loc
         self.root_r = r_init
         self.leaf_locs = leaf_locs
-        self.max_l = 2
+        self.max_l = 5
         self.merge_threshold = 0.25
-        self.prune_threshold = 1
+        self.prune_threshold = 5
         self.optimizer = GD_Optimizer
         self.max_iter = 5
 
@@ -33,7 +33,6 @@ class GCO():
     def relax(self, node):
         neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.neighbors(node)]
         print("node %d neighbor locs: %s" % (node, neighbor_locs))
-        #neighbor_radii = [self.VN.tree[node][n]['radius'] if self.VN.tree.nodes[n]['relaxed'] else None for n in self.VN.tree.neighbors(node)]
         neighbor_radii = [self.VN.tree[node][n]['radius'] for n in self.VN.tree.neighbors(node)]
         local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
         new_loc, new_radii, cost = local_optimizer.optimize()
@@ -50,28 +49,53 @@ class GCO():
     def merge(self, node):
         neighbor_edge_lengths = [self.VN.tree[node][n]['length'] for n in self.VN.tree.neighbors(node)]
         shortest_edge_idx = np.argmin(neighbor_edge_lengths)
-        
+        if list(self.VN.tree.neighbors(node))[shortest_edge_idx] in self.VN.leaves or len(neighbor_edge_lengths) == 1:
+            return
         second_shortest_edge_idx = np.argsort(neighbor_edge_lengths)[1]
         print(neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx])
         if neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx] <= self.merge_threshold:
             print("node %d merge" % node)
             self.VN.merge(node, list(self.VN.tree.neighbors(node))[shortest_edge_idx])
 
-    def split(self, node):
-        neighbor_num = len(list(self.VN.tree.neighbors(node)))
-        neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in self.VN.tree.neighbors(node)])
-        neighbor_edge_lengths = np.array([self.VN.tree[node][n]['length'] for n in self.VN.tree.neighbors(node)])
-        edges_to_split = []
+    def split_two_edges(self, node, root_idx):
+        neighbors = list(self.VN.tree.neighbors(node))
+        neighbor_num = len(neighbors)
+        if neighbor_num <= 3:
+            return [], 0
+        neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         max_rs = 0
+        target_edges = []
+        for i in range(neighbor_num - 1):
+            if i == root_idx: continue
+            for j in range(i + 1, neighbor_num):
+                if j == root_idx: continue
+                edges_to_split = [i, j]
+                new_edge_r, _ = self.VN.split_radius(node, np.array(neighbors)[edges_to_split])
+                pull_force = np.linalg.norm(self.local_derivative(node, np.array(neighbors)[edges_to_split]))
+                rs = self.rupture_strength(pull_force, new_edge_r)
+                if rs > max_rs:
+                    max_rs = rs
+                    target_edges = edges_to_split
+        return target_edges, max_rs
+
+    def split(self, node):
+        neighbors = list(self.VN.tree.neighbors(node))
+        neighbor_num = len(neighbors)
+        neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
+        root_idx = np.argmax(neighbor_edge_radii)
+        edges_to_split, max_rs = self.split_two_edges(node, root_idx)
+        print("node %d split start: %s" % (node, edges_to_split))
         while True:
             target_idx = None
             for i in range(neighbor_num):
-                if i in edges_to_split or i == 0:
+                if i in edges_to_split or i == root_idx:
                     continue
                 edges_to_split.append(i)
-                new_edge_r = np.sum(np.array(neighbor_edge_radii[edges_to_split]) ** self.VN.c) ** (1 / self.VN.c)
-                pull_force = np.linalg.norm(self.local_derivative(node, np.array(list(self.VN.tree.neighbors(node)))[edges_to_split]))
+                new_edge_r, _ = self.VN.split_radius(node, np.array(neighbors)[edges_to_split])
+                pull_force = np.linalg.norm(self.local_derivative(node, np.array(neighbors)[edges_to_split]))
                 rs = self.rupture_strength(pull_force, new_edge_r)
+                print("\tedges: %s" % edges_to_split)
+                print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
                 if rs > max_rs:
                     max_rs = rs
                     target_idx = i
@@ -80,13 +104,14 @@ class GCO():
                 edges_to_split.append(target_idx)
             else:
                 break
-        if max_rs <= 0:
+        if max_rs <= 0 or len(edges_to_split) < 1:
             return
-        chosen_nodes = np.array(list(self.VN.tree.neighbors(node)))[edges_to_split]
+        chosen_nodes = np.array(neighbors)[edges_to_split]
         chosen_locs = [self.VN.tree.nodes[n]['loc'] for n in chosen_nodes]
         print("node %d rupture_strength: %f" % (node, max_rs))
         print("node %d split edges: %s" % (node, chosen_nodes))
         self.VN.split(node, self.get_centroid(chosen_locs + [self.VN.tree.nodes[node]['loc']]), chosen_nodes)
+        #self.VN.split(node, self.get_centroid(chosen_locs), chosen_nodes)
 
     def get_centroid(self, node_locs):
         return tuple([sum(x) / len(x) for x in zip(*node_locs)])
@@ -100,11 +125,13 @@ class GCO():
         return np.sum(cost_list)
 
     def local_derivative(self, node, neighbors):
-        vecs = [self.VN.tree[node][n]['radius'] ** 2 * (self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) for n in neighbors]
-        return np.sum(vecs, axis=1)
+        vecs = [self.VN.tree[node][n]['radius'] ** 2 * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
+        print("\t\tvecs: %s" % vecs)
+        print("\t\tlocal dev: %s and norm %f " % (np.sum(vecs, axis=1), np.linalg.norm(np.sum(vecs, axis=0))))
+        return np.sum(vecs, axis=0)
 
     def rupture_strength(self, pull_force, new_edge_r):
-        return  pull_force - new_edge_r ** 2
+        return pull_force - new_edge_r ** 2
 
     def local_opt(self):
         self.local_init()
@@ -122,6 +149,7 @@ class GCO():
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
             self.split(n)
+        self.visualize()
 
     def GCO_opt(self):
         cur_l = self.max_l
@@ -149,12 +177,11 @@ class GCO():
             if cur_level >= self.prune_threshold:
                 self.VN.prune(cur_l)
                 count_l += 1
-            #self.visualize()
                 self.VN.reconnect()
             if count_l == 3:
                 cur_l -= 1
+                count_l = 0
             cur_iter += 1
-            #self.visualize()
 
     def visualize(self):
         locs = nx.get_node_attributes(self.VN.tree,'loc')
@@ -170,7 +197,7 @@ if __name__ == '__main__':
     coords = np.random.rand(10, 2) * 10
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
-    g = GCO((0,0),coords,1,10,2)
+    g = GCO((0,0),coords,2.5,10,2)
     #g.initialize()
     #print(g.local_derivative(3, [1, 2]))
     g.GCO_opt()

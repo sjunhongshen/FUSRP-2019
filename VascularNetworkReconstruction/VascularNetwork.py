@@ -36,23 +36,36 @@ class VascularNetwork():
         self.tree.remove_node(node2)
 
     def split(self, node1, node2_loc, nodes_to_split):
+        node2 = self.add_branching_point(node2_loc)
+        for n in nodes_to_split:
+            self.add_vessel(node2, n, self.tree[node1][n]['radius'], self.tree[node1][n]['flow'])
+        r_sum, f_sum = self.split_radius(node1, nodes_to_split)
+        for n in nodes_to_split:
+            self.tree.remove_edge(node1, n)
+        self.add_vessel(node1, node2, r_sum, f_sum)
+        print("split and create node %d at loc %s with radius %f" % (node2, node2_loc, r_sum))
+
+    def split_radius(self, node, nodes_to_split):
         r_sum = 0
         f_sum = 0
-        node2 = self.node_count
-        print("split and create node %d" % node2)
-        self.add_branching_point(node2_loc)
+        remaining_nodes = list(self.tree.neighbors(node))
+        neighbor_edge_radii = np.array([self.tree[node][n]['radius'] for n in remaining_nodes])
+        root = remaining_nodes[np.argmax(neighbor_edge_radii)]
+        print("root for node %d: %d" % (node, root))
         for n in nodes_to_split:
-            r_sum += self.tree[node1][n]['radius'] ** self.c
-            f_sum += self.tree[node1][n]['flow']
-            self.add_vessel(node2, n, self.tree[node1][n]['radius'], self.tree[node1][n]['flow'])
-            self.tree.remove_edge(node1, n)
-        self.add_vessel(node1, node2, r_sum ** (1 / self.c), f_sum)
+            remaining_nodes.remove(n)
+        if root in remaining_nodes:
+            remaining_nodes = nodes_to_split
+        for n in remaining_nodes:
+            r_sum += self.tree[node][n]['radius'] ** self.c
+            f_sum += self.tree[node][n]['flow']
+        return r_sum ** (1 / self.c), f_sum
 
-    def prune(self, l):
-        self.update_order('HS')
+    def prune(self, l, mode='level'):
+        self.update_order(mode)
         for edge in list(self.tree.edges):
             node1, node2 = edge
-            if min(self.tree.nodes[node1]['HS'], self.tree.nodes[node2]['HS']) < l:
+            if min(self.tree.nodes[node1][mode], self.tree.nodes[node2][mode]) <= l:
                 self.tree.remove_edge(node1, node2)
                 print("prune edge (%d, %d)" % (node1, node2))
         for node in list(self.tree.nodes):
@@ -71,11 +84,13 @@ class VascularNetwork():
                 if node not in self.leaves and dis < min_dis:
                     min_dis = dis
                     nearest_node = node
-            if nearest_node == 0:
-                self.add_vessel(nearest_node, leaf, self.r_0, self.f_0)
-            else:
-                self.add_vessel(nearest_node, leaf, self.get_radius_for_leaf(nearest_node), self.get_flow_for_leaf(nearest_node))
-                print("reconnect %d and %d with radius %f" % (leaf, nearest_node, self.get_radius_for_leaf(nearest_node)))
+            self.add_vessel(nearest_node, leaf, self.r_0, self.f_0)
+            print("reconnect %d and %d with radius %f" % (leaf, nearest_node, self.r_0))
+            # if nearest_node == 0:
+            #     self.add_vessel(nearest_node, leaf, self.r_0, self.f_0)
+            # else:
+            #     self.add_vessel(nearest_node, leaf, self.get_radius_for_leaf(nearest_node), self.get_flow_for_leaf(nearest_node))
+            #     print("reconnect %d and %d with radius %f" % (leaf, nearest_node, self.get_radius_for_leaf(nearest_node)))
 
     def move_node(self, node, loc_new):
         self.tree.nodes[node]['loc'] = loc_new
