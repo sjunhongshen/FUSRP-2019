@@ -77,13 +77,14 @@ class VascularNetwork():
         for leaf in self.leaves:
             if self.tree.degree[leaf] != 0:
                 continue
-            min_dis = np.linalg.norm(self.tree.nodes[0]['loc'] - self.tree.nodes[leaf]['loc'])
+            min_dis = np.inf
             nearest_node = 0
             for node in self.tree.nodes:
                 dis = np.linalg.norm(self.tree.nodes[node]['loc'] - self.tree.nodes[leaf]['loc'])
-                if node not in self.leaves and dis < min_dis:
+                if node not in self.leaves and node != 0 and dis < min_dis:
                     min_dis = dis
                     nearest_node = node
+                    print("leaf %d is closer to %d with distance %f" % (leaf, nearest_node, min_dis))
             self.add_vessel(nearest_node, leaf, self.r_0, self.f_0)
             print("reconnect %d and %d with radius %f" % (leaf, nearest_node, self.r_0))
             # if nearest_node == 0:
@@ -102,7 +103,6 @@ class VascularNetwork():
         dis_list = []
         node_list = list(self.tree.nodes)
         for node in self.tree.nodes:
-            #dis_list.append(np.linalg.norm(np.array(self.tree.nodes[node]['loc']) - np.array(self.tree.nodes[0]['loc'])))
             dis_list.append(self.tree.nodes[node]['level'])
         dis_idices = np.argsort(-1 * np.array(dis_list))
         dis_map = {0:0}

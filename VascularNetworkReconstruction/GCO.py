@@ -31,9 +31,17 @@ class GCO():
         self.VN.tree.nodes[0]['relaxed'] = True
 
     def relax(self, node):
-        neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.neighbors(node)]
+        neighbors = list(self.VN.tree.neighbors(node))
+        neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
+        root_idx = np.argmax(neighbor_radii)
+        non_root = neighbors[0]
+        neighbors[0] = neighbors[root_idx]
+        neighbors[root_idx] = non_root
+        neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
+        neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in neighbors]
+        print("node %d neighbors: %s" % (node, neighbors))
         print("node %d neighbor locs: %s" % (node, neighbor_locs))
-        neighbor_radii = [self.VN.tree[node][n]['radius'] for n in self.VN.tree.neighbors(node)]
+        print("node %d neighbor radii: %s" % (node, neighbor_radii))
         local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
         new_loc, new_radii, cost = local_optimizer.optimize()
         print("node %d new loc: %s" % (node, new_loc))
@@ -41,7 +49,7 @@ class GCO():
         print("node %d cost: %f" % (node, cost))
         self.VN.move_node(node, new_loc)
         i = 0
-        for n in self.VN.tree.neighbors(node):
+        for n in neighbors:
             self.VN.update_radius_and_flow((n, node), new_radii[i])
             i += 1
         self.VN.tree.nodes[node]['relaxed'] = True
@@ -55,7 +63,10 @@ class GCO():
         print(neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx])
         if neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx] <= self.merge_threshold:
             print("node %d merge" % node)
-            self.VN.merge(node, list(self.VN.tree.neighbors(node))[shortest_edge_idx])
+            if list(self.VN.tree.neighbors(node))[shortest_edge_idx] == 0:
+                self.VN.merge(list(self.VN.tree.neighbors(node))[shortest_edge_idx], node)
+            else:
+                self.VN.merge(node, list(self.VN.tree.neighbors(node))[shortest_edge_idx])
 
     def split_two_edges(self, node, root_idx):
         neighbors = list(self.VN.tree.neighbors(node))
@@ -104,14 +115,13 @@ class GCO():
                 edges_to_split.append(target_idx)
             else:
                 break
-        if max_rs <= 0 or len(edges_to_split) < 1:
+        if max_rs <= 0 or len(edges_to_split) < 2:
             return
         chosen_nodes = np.array(neighbors)[edges_to_split]
         chosen_locs = [self.VN.tree.nodes[n]['loc'] for n in chosen_nodes]
         print("node %d rupture_strength: %f" % (node, max_rs))
         print("node %d split edges: %s" % (node, chosen_nodes))
         self.VN.split(node, self.get_centroid(chosen_locs + [self.VN.tree.nodes[node]['loc']]), chosen_nodes)
-        #self.VN.split(node, self.get_centroid(chosen_locs), chosen_nodes)
 
     def get_centroid(self, node_locs):
         return tuple([sum(x) / len(x) for x in zip(*node_locs)])
@@ -194,7 +204,15 @@ class GCO():
         plt.show()
 
 if __name__ == '__main__':
-    coords = np.random.rand(10, 2) * 10
+    coords = np.random.rand(20, 2) * (-10)
+    for i in range(10):
+        coords[i][1] = -1 * coords[i][0]
+        coords[i + 10][1] = coords[i + 10][0] + 20
+    coords2 = np.random.rand(20, 2) * (10)
+    for i in range(10):
+        coords2[i][1] = coords2[i][0]
+        coords2[i + 10][1] = -1 * coords2[i + 10][0] + 20
+    coords = np.concatenate((coords, coords2))
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
     g = GCO((0,0),coords,2.5,10,2)
