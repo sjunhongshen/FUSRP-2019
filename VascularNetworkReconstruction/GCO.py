@@ -204,14 +204,15 @@ class GCO():
         plt.show()
 
 if __name__ == '__main__':
-    coords = np.random.rand(20, 2) * (-10)
-    for i in range(10):
+    num = 5
+    coords = np.random.rand(2 * num, 2) * (-10)
+    for i in range(num):
         coords[i][1] = -1 * coords[i][0]
-        coords[i + 10][1] = coords[i + 10][0] + 20
-    coords2 = np.random.rand(20, 2) * (10)
-    for i in range(10):
+        coords[i + num][1] = coords[i + num][0] + 20
+    coords2 = np.random.rand(2 * num, 2) * (10)
+    for i in range(num):
         coords2[i][1] = coords2[i][0]
-        coords2[i + 10][1] = -1 * coords2[i + 10][0] + 20
+        coords2[i + num][1] = -1 * coords2[i + num][0] + 20
     coords = np.concatenate((coords, coords2))
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
