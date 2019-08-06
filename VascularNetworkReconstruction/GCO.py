@@ -3,7 +3,7 @@ from VascularNetwork import VascularNetwork
 import networkx as nx
 import matplotlib.pyplot as plt
 #from SimulatedAnnealing import SA
-from GD_Optimizer import GD_Optimizer
+from GD_Optimizer2 import GD_Optimizer
 
 class GCO():
     def __init__(self, root_loc, leaf_locs, r_init, f_init, p_init):

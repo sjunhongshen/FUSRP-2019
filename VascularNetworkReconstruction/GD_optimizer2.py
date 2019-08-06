@@ -38,13 +38,14 @@ class GD_Optimizer():
 
     # length of the branching to each point
     def lengthi(self, testMedian, dataPoints, l):
+        # print("\t\tlength: %f" % np.linalg.norm(testMedian - dataPoints[l]))
         return np.linalg.norm(testMedian - dataPoints[l])
 
     # derivative of length with respect to coordinate
     def part_de(self, testMedian, dataPoints, j):
         par = []
         for i in range(len(dataPoints[0])):
-            dx_par = (testMedian[i] - dataPoints[j][i]) / lengthi(testMedian, dataPoints, j)
+            dx_par = (testMedian[i] - dataPoints[j][i]) / self.lengthi(testMedian, dataPoints, j)
             par.append(dx_par)
         return par
 
@@ -56,54 +57,54 @@ class GD_Optimizer():
     def one_term(self, testMedian, testRadius, dataPoints):
         temp = 0.0
         for i in range(1, len(dataPoints)):
-            temp += testRadius[i] ** 4 / lengthi(self, testMedian, dataPoints, i)
+            temp += testRadius[i] ** 4 / self.lengthi(testMedian, dataPoints, i)
         return temp ** (-2)
 
     # cost function
-    def cost(self, testMedian, testRadius, dataPoints):
+    def cost(self, testMedian, dataPoints, testRadius):
         temp1 = 0.0
         for i in range(0, len(dataPoints)):
-            temp1 += lengthi(self, testMedian, dataPoints, i) * testRadius[i]
+            temp1 += self.lengthi(testMedian, dataPoints, i) * testRadius[i]
         temp2 = 0.0
         for i in range(1, len(dataPoints)):
-            temp2 += testRadius[i] ** 4 / lengthi(self, testMedian, dataPoints, i)
-        temp2 = 1 / temp2 + lengthi(self, testMedian, dataPoints, 0) / testRadius[0]
+            temp2 += testRadius[i] ** 4 / self.lengthi(testMedian, dataPoints, i)
+        temp2 = 1 / temp2 + self.lengthi(testMedian, dataPoints, 0) / testRadius[0]
         temp3 = 0.0
         for i in range(0, len(dataPoints)):
-            temp3 += penalty(self, testRadius, i)
+            temp3 += self.penalty(testRadius, i)
         return temp1 + temp2 + temp3
 
     # gradient of x coordinate
     def gradx(self, testMedian, dataPoints, testRadius, axis):
         temp4 = 0.0
         for i in range(0, len(dataPoints)):
-            temp4 += testRadius[i] * part_de(self, testMedian, dataPoints, i)[axis]
+            temp4 += testRadius[i] * self.part_de(testMedian, dataPoints, i)[axis]
         temp6 = 0.0
         for i in range(1, len(dataPoints)):
-            temp6 += testRadius[i] ** 4 / lengthi(self, testMedian, dataPoints, i) ** 2 * \
-                     part_de(self, testMedian, dataPoints, i)[axis]
-        temp7 = testRadius[0] ** (-4) * part_de(self, testMedian, dataPoints, 0)[axis]
-        return temp4 + one_term(self, testMedian, testRadius, dataPoints) * temp6 + temp7
+            temp6 += testRadius[i] ** 4 / self.lengthi(testMedian, dataPoints, i) ** 2 * \
+                     self.part_de(testMedian, dataPoints, i)[axis]
+        temp7 = testRadius[0] ** (-4) * self.part_de(testMedian, dataPoints, 0)[axis]
+        return temp4 + self.one_term(testMedian, testRadius, dataPoints) * temp6 + temp7
 
     # the gradient of the position
     def gradient_posit(self, testMedian, dataPoints, testRadius):
-        return np.array([gradx(self, testMedian, dataPoints, testRadius, i) for i in range(len(dataPoints[0]))])
+        return np.array([self.gradx(testMedian, dataPoints, testRadius, i) for i in range(len(dataPoints[0]))])
 
     # the gradient of each radius except for the root
     def gradient_radiu(self, testMedian, dataPoints, testRadius):
         dr = [0]  # the main radius never change
         for i in range(1, len(dataPoints)):
-            dr_i = lengthi(self, testMedian, dataPoints, i) - one_term(self, testMedian, testRadius, dataPoints) * \
-                   4 / lengthi(self, testMedian, dataPoints, i) * testRadius[i] ** 3 + 8 * (2 * testRadius[i] - 3)
+            dr_i = self.lengthi(testMedian, dataPoints, i) - self.one_term(testMedian, testRadius, dataPoints) * \
+                   4 / self.lengthi(testMedian, dataPoints, i) * testRadius[i] ** 3 + 8 * (2 * testRadius[i] - 3)
             dr.append(dr_i)
-        return array(dr)
+        return np.array(dr)
 
     def optimize(self):
         for i in range(self.loop_max):
             cost1 = self.cost(self.testMedian, self.dataPoints, self.testRadius)
             testMediani = self.testMedian - self.theta * self.gradient_posit(self.testMedian, self.dataPoints, self.testRadius)
             testRadiusi = self.testRadius - self.theta * self.gradient_radiu(self.testMedian, self.dataPoints, self.testRadius)
-            testRadiusi[self.num_points - 1] = self.get_last_r(testRadiusi)
+            #testRadiusi[self.num_points - 1] = self.get_last_r(testRadiusi)
             costi = self.cost(testMediani, self.dataPoints, testRadiusi)
             if cost1 - costi > self.epsilon:
                 self.testMedian = testMediani
