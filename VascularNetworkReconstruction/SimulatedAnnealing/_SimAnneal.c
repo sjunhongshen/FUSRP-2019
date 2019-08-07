@@ -54,7 +54,7 @@ static PyObject *SimAnneal_SA(PyObject *self, PyObject *args)
     double *y = (double*)PyArray_DATA(y_array);
     double *z = (double*)PyArray_DATA(z_array);
 
-    /* Call the external C function to compute the chi-squared. */
+    /* Call the external C function to compute the cost. */
     double cost = SA(x, y, z, imax);
 
     /* Clean up. */
