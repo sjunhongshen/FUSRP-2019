@@ -81,7 +81,7 @@ class VascularNetwork():
             nearest_node = 0
             for node in self.tree.nodes:
                 dis = np.linalg.norm(self.tree.nodes[node]['loc'] - self.tree.nodes[leaf]['loc'])
-                if node not in self.leaves and node != 0 and dis < min_dis:
+                if node not in self.leaves and dis < min_dis:
                     min_dis = dis
                     nearest_node = node
                     print("leaf %d is closer to %d with distance %f" % (leaf, nearest_node, min_dis))

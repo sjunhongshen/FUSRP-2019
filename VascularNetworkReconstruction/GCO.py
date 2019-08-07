@@ -3,7 +3,8 @@ from VascularNetwork import VascularNetwork
 import networkx as nx
 import matplotlib.pyplot as plt
 #from SimulatedAnnealing import SA
-from GD_Optimizer2 import GD_Optimizer
+from GD_Optimizer import GD_Optimizer
+from SA_Optimizer import SA_Optimizer
 
 class GCO():
     def __init__(self, root_loc, leaf_locs, r_init, f_init, p_init):
@@ -14,8 +15,9 @@ class GCO():
         self.max_l = 5
         self.merge_threshold = 0.25
         self.prune_threshold = 5
-        self.optimizer = GD_Optimizer
-        self.max_iter = 5
+        self.optimizer = SA_Optimizer
+        self.optimizer2 = GD_Optimizer
+        self.max_iter = 6
 
     def initialize(self):
         locs = self.leaf_locs + [self.root_loc]
@@ -39,11 +41,14 @@ class GCO():
         neighbors[root_idx] = non_root
         neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in neighbors]
+        print("node %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
         print("node %d neighbors: %s" % (node, neighbors))
         print("node %d neighbor locs: %s" % (node, neighbor_locs))
         print("node %d neighbor radii: %s" % (node, neighbor_radii))
         local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
         new_loc, new_radii, cost = local_optimizer.optimize()
+        # local_optimizer2 = self.optimizer2(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
+        # new_loc2, new_radii2, cost2 = local_optimizer2.optimize()
         print("node %d new loc: %s" % (node, new_loc))
         print("node %d new radii: %s" % (node, new_radii))
         print("node %d cost: %f" % (node, cost))
@@ -115,7 +120,7 @@ class GCO():
                 edges_to_split.append(target_idx)
             else:
                 break
-        if max_rs <= 0 or len(edges_to_split) < 2:
+        if max_rs <= 0 or len(edges_to_split) < 2 or (neighbor_num - len(edges_to_split)) < 2:
             return
         chosen_nodes = np.array(neighbors)[edges_to_split]
         chosen_locs = [self.VN.tree.nodes[n]['loc'] for n in chosen_nodes]
@@ -150,11 +155,12 @@ class GCO():
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
             self.relax(n)
-            self.visualize()
+        self.visualize()
         for n in range(len(self.VN.tree)):
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
             self.merge(n)
+        self.visualize()
         for n in range(len(self.VN.tree)):
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
@@ -195,11 +201,11 @@ class GCO():
 
     def visualize(self):
         locs = nx.get_node_attributes(self.VN.tree,'loc')
-        nx.draw(self.VN.tree, locs, with_labels=True)
+        nx.draw(self.VN.tree, locs, with_labels=False, node_size=20)
         #label1 = nx.get_node_attributes(self.VN.tree, 'HS')
         label2 = nx.get_edge_attributes(self.VN.tree, 'radius')
         #nx.draw_networkx_labels(self.VN.tree, locs, label1)
-        nx.draw_networkx_labels(self.VN.tree, locs)
+        #nx.draw_networkx_labels(self.VN.tree, locs)
         #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
         plt.show()
 

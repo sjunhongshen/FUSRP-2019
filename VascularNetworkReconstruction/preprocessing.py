@@ -23,7 +23,6 @@ def readNIfTI(filename):
     return np.transpose(image_array, (2, 0, 1)), nibabel.load(filename).affine
 
 def writeNIfTI(data, path, affine):
-    print(np.eye(4))
     img = nibabel.Nifti1Image(data, affine)
     nibabel.save(img, path)
     return
@@ -171,12 +170,9 @@ def adjust_gamma(imgs, gamma = 1.0):
     return new_imgs
 
 def preprocess(imgs):
-    print(imgs.shape)
     #imgs = np.transpose(imgs, (0, 3, 1, 2))
-    print(imgs.shape)
     imgs_normalized = clip_intensity(imgs, 200)
     imgs_power = raise_power(imgs_normalized, 3)
-    print(imgs_power.shape)
     #return np.transpose(imgs_power, (0, 2, 3, 1))
     return np.transpose(imgs_power, (1, 2, 0))
 
@@ -251,6 +247,14 @@ def filter_out_background(voxel_data, black_white, eigen2, eigen3):
         voxel_data[eigen3 > 0] = 0
     voxel_data[np.isnan(voxel_data)] = 0
     return voxel_data
+
+def preprocess_img(filename, savepath):
+    # filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.nii'
+    # savepath = '/Users/kimihirochin/Desktop/mesh/sample1_changed.nii.gz'
+    imgs, aff = readNIfTI(filename)
+    imgs_preprocessed = preprocess(imgs)
+    writeNIfTI(imgs_preprocessed, savepath, aff)
+
 
 if __name__ == "__main__":
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.nii'

@@ -32,12 +32,6 @@ class GD_Optimizer():
         return [tempX / len(dataPoints), tempY / len(dataPoints), tempZ / len(dataPoints)]
 
     def get_last_r(self, testRadius):
-        # print("!")
-        # print(testRadius ** self.c)
-        # print(np.sum(testRadius ** self.c))
-        # print(testRadius[self.num_points - 1] ** self.c)
-        # print((np.sum(testRadius ** self.c) - testRadius[self.num_points - 1] ** self.c))
-        # print((2 * testRadius[0] ** self.c - (np.sum(testRadius ** self.c) - testRadius[self.num_points - 1] ** self.c)))
         return (2 * testRadius[0] ** self.c - (np.sum(testRadius ** self.c) - testRadius[self.num_points - 1] ** self.c)) ** (1 / self.c)
 
     # this cost function consider only about length
@@ -69,7 +63,7 @@ class GD_Optimizer():
             dr.append(dr_i)
         return np.array(dr)
 
-    def optimize(self):
+    def optimize_single(self):
         cost1 = self.cost(self.testMedian, self.dataPoints, self.testRadius)
         for i in range(self.loop_max):
             # print("\t\t\tpos: %s, rad: %s" % (self.gradient_posit(self.testMedian, self.dataPoints, self.testRadius), self.gradient_radiu(self.testMedian, self.dataPoints, self.testRadius)))
@@ -89,6 +83,29 @@ class GD_Optimizer():
                 self.theta1 = self.theta1 * 0.3
                 self.theta2 = self.theta2 * 0.3
         return self.testMedian, self.testRadius, self.cost(self.testMedian, self.dataPoints, self.testRadius)
+
+    def optimize(self, mode="multiple"):
+        if mode == "single":
+            self.optimize_single()
+        elif mode == "multiple":
+            testMedians = np.random.rand(5, 2) * (np.max(self.dataPoints) - np.min(self.dataPoints)) + np.min(self.dataPoints)
+            testMedians = np.concatenate((np.array([self.testMedian]), testMedians))
+            tr = self.testRadius
+            costs = []
+            for tm in testMedians:
+                self.testMedian = tm
+                self.testRadius = tr
+                self.optimize_single()
+                costs.append(self.cost(self.testMedian, self.dataPoints, self.testRadius))
+            print(testMedians)
+            print(costs)
+            idx = np.argmin(np.array(costs))
+            self.testMedian = testMedians[idx]
+            self.testRadius = tr
+            self.optimize_single()
+        return self.testMedian, self.testRadius, self.cost(self.testMedian, self.dataPoints, self.testRadius)
+
+
 
 
 if __name__ == '__main__':
