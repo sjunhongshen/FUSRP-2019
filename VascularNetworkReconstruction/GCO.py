@@ -13,7 +13,7 @@ class GCO():
         self.root_r = r_init
         self.leaf_locs = leaf_locs
         self.max_l = 5
-        self.merge_threshold = 0.2
+        self.merge_threshold = 0.1
         self.prune_threshold = 5
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
