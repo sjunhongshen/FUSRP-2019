@@ -62,7 +62,7 @@ class VascularNetwork():
             f_sum += self.tree[node][n]['flow']
         return r_sum ** (1 / self.c), f_sum
 
-    def prune(self, l, mode='level'):
+    def prune(self, l, mode='HS'):
         self.update_order(mode)
         for edge in list(self.tree.edges):
             node1, node2 = edge

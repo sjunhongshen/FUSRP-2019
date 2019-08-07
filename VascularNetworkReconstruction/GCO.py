@@ -1,8 +1,8 @@
 import numpy as np
-from VascularNetwork import VascularNetwork
 import networkx as nx
 import matplotlib.pyplot as plt
-#from SimulatedAnnealing import SA
+from mayavi import mlab
+from VascularNetwork import VascularNetwork
 from GD_Optimizer2 import GD_Optimizer
 from SA_Optimizer import SA_Optimizer
 
@@ -66,7 +66,6 @@ class GCO():
         if list(self.VN.tree.neighbors(node))[shortest_edge_idx] in self.VN.leaves or len(neighbor_edge_lengths) == 1:
             return
         second_shortest_edge_idx = np.argsort(neighbor_edge_lengths)[1]
-        # print(neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx])
         if neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx] <= self.merge_threshold:
             print("node %d merge" % node)
             if list(self.VN.tree.neighbors(node))[shortest_edge_idx] == 0:
@@ -208,34 +207,62 @@ class GCO():
             cur_iter += 1
 
     def visualize(self):
-        locs = nx.get_node_attributes(self.VN.tree,'loc')
-        nx.draw(self.VN.tree, locs, with_labels=False, node_size=300)
-        #label1 = nx.get_node_attributes(self.VN.tree, 'HS')
-        label2 = nx.get_edge_attributes(self.VN.tree, 'radius')
-        #nx.draw_networkx_labels(self.VN.tree, locs, label1)
-        nx.draw_networkx_labels(self.VN.tree, locs)
-        #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
-        plt.show()
+        dim = len(self.VN.tree.nodes[0]['loc'])
+        if dim == 2:
+            locs = nx.get_node_attributes(self.VN.tree,'loc')
+            nx.draw(self.VN.tree, locs, with_labels=False, node_size=20)
+            #label1 = nx.get_node_attributes(self.VN.tree, 'HS')
+            label2 = nx.get_edge_attributes(self.VN.tree, 'radius')
+            #nx.draw_networkx_labels(self.VN.tree, locs, label1)
+            #nx.draw_networkx_labels(self.VN.tree, locs)
+            #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
+            plt.show()
+        else:
+            xyz = np.array([self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.nodes])
+            # scalar colors
+            scalars = np.array(list(self.VN.tree.nodes)) + 5
+
+            mlab.figure(1, bgcolor=(0, 0, 0))
+            mlab.clf()
+            mlab.points3d(0, -10, 0,
+                        scale_factor=1,
+                        scale_mode='none',
+                        colormap='Blues',
+                        resolution=40)
+            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2],
+                        scalars,
+                        scale_factor=0.5,
+                        scale_mode='none',
+                        colormap='Blues',
+                        resolution=20)
+
+            pts.mlab_source.dataset.lines = np.array(list(self.VN.tree.edges()))
+            tube = mlab.pipeline.tube(pts, tube_radius=0.05)
+            mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+
+            mlab.show()
 
 if __name__ == '__main__':
-    num = 2
-    coords = np.random.rand(2 * num, 2) * (-10)
+    dim = 3
+    num = 10
+    coords = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords[i][1] = -1 * coords[i][0] - 10
         coords[i + num][1] = coords[i + num][0] + 10
 
-    coords2 = np.random.rand(2 * num, 2) * (10)
+
+    coords2 = np.random.rand(2 * num, dim) * (10)
     for i in range(num):
         coords2[i][1] = coords2[i][0] - 10
         coords2[i + num][1] = -1 * coords2[i + num][0] + 10
 
-    num = 2
-    coords3 = np.random.rand(2 * num, 2) * (-10)
+    num = 20
+    coords3 = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords3[i][1] = np.random.random_sample() * (-1 * coords3[i][0] - 10)
         coords3[i + num][1] = np.random.random_sample() * (coords3[i + num][0] + 10)
 
-    coords4 = np.random.rand(2 * num, 2) * (10)
+    coords4 = np.random.rand(2 * num, dim) * (10)
     for i in range(num):
         coords4[i][1] = np.random.random_sample() * (coords4[i][0] - 10)
         coords4[i + num][1] = np.random.random_sample() * (-1 * coords4[i + num][0] + 10)
@@ -243,9 +270,13 @@ if __name__ == '__main__':
     coords = np.concatenate((coords, coords2))
     coords3 = np.concatenate((coords3, coords4))
     coords = np.concatenate((coords, coords3))
+
+    for i in range(len(coords)):
+        coords[i][2] = (100 - coords[i][0] ** 2 - coords[i][1] ** 2) ** (1 / 2)
+
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
-    g = GCO((0,-10),coords,2.5,10,2)
+    g = GCO((0,-10,0),coords,2.5,10,2)
     #g.initialize()
     #print(g.local_derivative(3, [1, 2]))
     g.GCO_opt()

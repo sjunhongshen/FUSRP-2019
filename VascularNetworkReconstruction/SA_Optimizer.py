@@ -15,9 +15,10 @@ class SA_Optimizer():
         self.c = 3
         self.max_try = 10
         self.costs = [self.cost(self.testMedians[self.count], self.testRadii[self.count])]
+        self.dim = len(self.dataPoints[0])
 
     def move(self):
-        loc_new = self.testMedians[self.count] + (2 * np.random.rand(1, 2)[0] - 1) * 0.05 * self.T * self.get_loc_range()
+        loc_new = self.testMedians[self.count] + (2 * np.random.rand(1, self.dim)[0] - 1) * 0.05 * self.T * self.get_loc_range()
         rand = np.concatenate((np.array([0.5]), np.random.rand(1, self.num_points - 1)[0]))
         radii_new = self.testRadii[self.count] + (2 * rand - 1) * 0.05 * self.T * self.get_radius_range()
         radii_new[0] = self.get_first_r(radii_new)
