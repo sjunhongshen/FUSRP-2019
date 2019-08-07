@@ -1,4 +1,4 @@
-double SimAnneal(double, double, double);
+double SA(double, double, double);
 double CostCal(double, double, double);
 int move(double *, double *, double *, double, double, double, double);
 int maxmin (double *, double *, double *);
