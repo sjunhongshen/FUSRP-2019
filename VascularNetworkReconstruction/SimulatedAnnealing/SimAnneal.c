@@ -3,7 +3,7 @@
 #include <math.h>
 #include "SimAnneal.h"
 
-double SimAnneal(double *x, double *y, double *z, int imax)
+double SA(double *x, double *y, double *z, int imax)
 {
     double pa, prob, sumx=0, sumy=0, sumz=0;
     double cold, cmin = 1e+20, cnew, xnew, ynew, znew;
