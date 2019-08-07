@@ -13,8 +13,8 @@ class GD_Optimizer():
         self.loop_max = l_max  # maximum loop
         self.epsilon = eps
         self.c = c
-        self.w1 = 4
-        self.w2 = 4
+        self.w1 = (7/3)
+        self.w2 = (7/3)
 
     # initial point is the average of the coordinates
     def ini_posit(self, dataPoints):
@@ -95,7 +95,7 @@ class GD_Optimizer():
         dr = [0]  # the main radius never change
         for i in range(1, len(dataPoints)):
             dr_i = self.lengthi(testMedian, dataPoints, i) - self.one_term(testMedian, testRadius, dataPoints) * \
-                   4 / self.lengthi(testMedian, dataPoints, i) * testRadius[i] ** 3 + 8 * (2 * testRadius[i] - 3)
+                   4 / self.lengthi(testMedian, dataPoints, i) * testRadius[i] ** 3 + 7 * (2 * testRadius[i] - 3)
             dr.append(dr_i)
         return np.array(dr)
 
