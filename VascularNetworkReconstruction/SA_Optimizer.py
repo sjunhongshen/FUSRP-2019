@@ -9,11 +9,11 @@ class SA_Optimizer():
         self.testMedians = [init_loc]
         self.count = 0
         self.T = 1
-        self.a = 0.9
+        self.a = 0.95
         self.w1 = 6
         self.w2 = 6
         self.c = 3
-        self.max_try = 5
+        self.max_try = 10
         self.costs = [self.cost(self.testMedians[self.count], self.testRadii[self.count])]
 
     def move(self):
@@ -26,12 +26,28 @@ class SA_Optimizer():
         self.testRadii.append(radii_new)
         self.costs.append(self.cost(self.testMedians[self.count], self.testRadii[self.count]))
 
-    def cost(self, testMedian, testRadius):
-        temp = 0.0
-        for i in range(self.num_points):
-            temp += np.linalg.norm(testMedian - self.dataPoints[i]) * (testRadius[i] ** 2) + \
-                max(0, testRadius[i]-2)**2*self.w1 + max(0, 1-testRadius[i])**2*self.w2
-        return temp
+    def penalty(self, testRadius, k):
+        return max(0, testRadius[k] - 2) ** 2 * self.w1 + max(0, 1 - testRadius[k]) ** 2 * self.w2
+
+    def cost(self, testMedian, testRadius, mode='PC'):
+        if mode == 'MC':
+            temp = 0.0
+            for i in range(self.num_points):
+                temp += np.linalg.norm(testMedian - self.dataPoints[i]) * (testRadius[i] ** 2) + \
+                    max(0, testRadius[i]-2)**2*self.w1 + max(0, 1-testRadius[i])**2*self.w2
+            return temp
+        else:
+            temp1 = 0.0
+            for i in range(self.num_points):
+                temp1 += np.linalg.norm(testMedian - self.dataPoints[i]) * testRadius[i] ** 2
+            temp2 = 0.0
+            for i in range(1, len(self.dataPoints)):
+                temp2 += testRadius[i] ** 4 / np.linalg.norm(testMedian - self.dataPoints[i])
+            temp2 = 1 / temp2 + np.linalg.norm(testMedian - self.dataPoints[0]) / testRadius[0] ** 4
+            temp3 = 0.0
+            for i in range(self.num_points):
+                temp3 += self.penalty(testRadius, i)
+            return temp1 + temp2 + temp3
 
     def optimize(self):
         while self.T > 1e-5:
@@ -53,8 +69,7 @@ class SA_Optimizer():
                     del self.testRadii[-1]
                     del self.costs[-1]
                     self.count -= 1
-                else:
-                    i += 1
+                i += 1
             self.T = self.T * self.a
         min_idx = np.argmin(self.costs)
         return self.testMedians[min_idx], self.testRadii[min_idx], self.costs[min_idx]

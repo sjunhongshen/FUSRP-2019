@@ -14,7 +14,8 @@ class VascularNetwork():
         self.c = 3
         self.mu = 3.6 * 1e-3
         self.alpha = 1
-        self.r_0 = ((r_init ** self.c) / len(leaves)) ** (1 / self.c)
+        # self.r_0 = ((r_init ** self.c) / len(leaves)) ** (1 / self.c)
+        self.r_0 = 0.8
         self.f_0 = f_init / len(leaves)
         self.p_0 = p_init
 
@@ -51,7 +52,7 @@ class VascularNetwork():
         remaining_nodes = list(self.tree.neighbors(node))
         neighbor_edge_radii = np.array([self.tree[node][n]['radius'] for n in remaining_nodes])
         root = remaining_nodes[np.argmax(neighbor_edge_radii)]
-        print("root for node %d: %d" % (node, root))
+        # print("root for node %d: %d" % (node, root))
         for n in nodes_to_split:
             remaining_nodes.remove(n)
         if root in remaining_nodes:
@@ -81,7 +82,7 @@ class VascularNetwork():
             nearest_node = 0
             for node in self.tree.nodes:
                 dis = np.linalg.norm(self.tree.nodes[node]['loc'] - self.tree.nodes[leaf]['loc'])
-                if node not in self.leaves and dis < min_dis:
+                if node not in self.leaves and node != 0 and dis < min_dis:
                     min_dis = dis
                     nearest_node = node
                     print("leaf %d is closer to %d with distance %f" % (leaf, nearest_node, min_dis))

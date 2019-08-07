@@ -3,7 +3,7 @@ from VascularNetwork import VascularNetwork
 import networkx as nx
 import matplotlib.pyplot as plt
 #from SimulatedAnnealing import SA
-from GD_Optimizer import GD_Optimizer
+from GD_Optimizer2 import GD_Optimizer
 from SA_Optimizer import SA_Optimizer
 
 class GCO():
@@ -17,7 +17,8 @@ class GCO():
         self.prune_threshold = 5
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
-        self.max_iter = 6
+        self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
+        print("max iter: %d" % self.max_iter)
 
     def initialize(self):
         locs = self.leaf_locs + [self.root_loc]
@@ -65,7 +66,7 @@ class GCO():
         if list(self.VN.tree.neighbors(node))[shortest_edge_idx] in self.VN.leaves or len(neighbor_edge_lengths) == 1:
             return
         second_shortest_edge_idx = np.argsort(neighbor_edge_lengths)[1]
-        print(neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx])
+        # print(neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx])
         if neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx] <= self.merge_threshold:
             print("node %d merge" % node)
             if list(self.VN.tree.neighbors(node))[shortest_edge_idx] == 0:
@@ -110,8 +111,8 @@ class GCO():
                 new_edge_r, _ = self.VN.split_radius(node, np.array(neighbors)[edges_to_split])
                 pull_force = np.linalg.norm(self.local_derivative(node, np.array(neighbors)[edges_to_split]))
                 rs = self.rupture_strength(pull_force, new_edge_r)
-                print("\tedges: %s" % edges_to_split)
-                print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
+                # print("\tedges: %s" % edges_to_split)
+                # print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
                 if rs > max_rs:
                     max_rs = rs
                     target_idx = i
@@ -131,22 +132,29 @@ class GCO():
     def get_centroid(self, node_locs):
         return tuple([sum(x) / len(x) for x in zip(*node_locs)])
 
-    def local_cost(self, edge):
+    def local_cost(self, edge, mode='PC'):
         node1, node2 = edge
-        return self.VN.tree[node1][node2]['radius'] ** 2 * self.VN.tree[node1][node2]['length']
+        if mode == 'MC':
+            return self.VN.tree[node1][node2]['radius'] ** 2 * self.VN.tree[node1][node2]['length']
+        else:
+            return (self.VN.tree[node1][node2]['radius'] ** 2 + self.VN.tree[node1][node2]['radius'] ** (-4)) * self.VN.tree[node1][node2]['length']
 
     def global_cost(self):
         cost_list = [self.local_cost(edge) for edge in list(self.VN.tree.edges)]
         return np.sum(cost_list)
 
-    def local_derivative(self, node, neighbors):
-        vecs = [self.VN.tree[node][n]['radius'] ** 2 * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
-        print("\t\tvecs: %s" % vecs)
-        print("\t\tlocal dev: %s and norm %f " % (np.sum(vecs, axis=1), np.linalg.norm(np.sum(vecs, axis=0))))
+    def local_derivative(self, node, neighbors, mode='PC'):
+        if mode == 'MC':
+            vecs = [self.VN.tree[node][n]['radius'] ** 2 * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
+        else:
+            vecs = [(self.VN.tree[node][n]['radius'] ** 2 + self.VN.tree[node][n]['radius'] ** (-4)) * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
         return np.sum(vecs, axis=0)
 
-    def rupture_strength(self, pull_force, new_edge_r):
-        return pull_force - new_edge_r ** 2
+    def rupture_strength(self, pull_force, new_edge_r, mode='PC'):
+        if mode == 'MC':
+            return pull_force - new_edge_r ** 2
+        else:
+            return pull_force - new_edge_r ** 2 - new_edge_r ** (-4)
 
     def local_opt(self):
         self.local_init()
@@ -195,34 +203,49 @@ class GCO():
                 count_l += 1
                 self.VN.reconnect()
             if count_l == 3:
-                cur_l -= 1
+                cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
             cur_iter += 1
 
     def visualize(self):
         locs = nx.get_node_attributes(self.VN.tree,'loc')
-        nx.draw(self.VN.tree, locs, with_labels=False, node_size=20)
+        nx.draw(self.VN.tree, locs, with_labels=False, node_size=300)
         #label1 = nx.get_node_attributes(self.VN.tree, 'HS')
         label2 = nx.get_edge_attributes(self.VN.tree, 'radius')
         #nx.draw_networkx_labels(self.VN.tree, locs, label1)
-        #nx.draw_networkx_labels(self.VN.tree, locs)
+        nx.draw_networkx_labels(self.VN.tree, locs)
         #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
         plt.show()
 
 if __name__ == '__main__':
-    num = 5
+    num = 2
     coords = np.random.rand(2 * num, 2) * (-10)
     for i in range(num):
-        coords[i][1] = -1 * coords[i][0]
-        coords[i + num][1] = coords[i + num][0] + 20
+        coords[i][1] = -1 * coords[i][0] - 10
+        coords[i + num][1] = coords[i + num][0] + 10
+
     coords2 = np.random.rand(2 * num, 2) * (10)
     for i in range(num):
-        coords2[i][1] = coords2[i][0]
-        coords2[i + num][1] = -1 * coords2[i + num][0] + 20
+        coords2[i][1] = coords2[i][0] - 10
+        coords2[i + num][1] = -1 * coords2[i + num][0] + 10
+
+    num = 2
+    coords3 = np.random.rand(2 * num, 2) * (-10)
+    for i in range(num):
+        coords3[i][1] = np.random.random_sample() * (-1 * coords3[i][0] - 10)
+        coords3[i + num][1] = np.random.random_sample() * (coords3[i + num][0] + 10)
+
+    coords4 = np.random.rand(2 * num, 2) * (10)
+    for i in range(num):
+        coords4[i][1] = np.random.random_sample() * (coords4[i][0] - 10)
+        coords4[i + num][1] = np.random.random_sample() * (-1 * coords4[i + num][0] + 10)
+
     coords = np.concatenate((coords, coords2))
+    coords3 = np.concatenate((coords3, coords4))
+    coords = np.concatenate((coords, coords3))
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
-    g = GCO((0,0),coords,2.5,10,2)
+    g = GCO((0,-10),coords,2.5,10,2)
     #g.initialize()
     #print(g.local_derivative(3, [1, 2]))
     g.GCO_opt()
