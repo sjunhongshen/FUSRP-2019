@@ -67,11 +67,7 @@ static PyObject *SimAnneal_SA(PyObject *self, PyObject *args)
     double *y = (double*)PyArray_DATA(y_array);
     double *z = (double*)PyArray_DATA(z_array);
 
-	for (i=0; i<imax; i++){
-		printf("x[%d]=%f\ty[%d]=%f\tz[%d]=%f\n", i, x[i], i, y[i], i, z[i]);
-	}
-
-    /* Call the external C function to compute the chi-squared. */
+    /* Call the external C function to compute the cost. */
     double cost = SA(x, y, z, imax);
 
     /* Clean up. */
