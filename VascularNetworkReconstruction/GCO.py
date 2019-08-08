@@ -18,7 +18,7 @@ class GCO():
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
         self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
-        self.cost_mode = 'MC'
+        self.cost_mode = 'PC'
         print("max iter: %d" % self.max_iter)
 
     def initialize(self):
@@ -250,7 +250,7 @@ class GCO():
 
 if __name__ == '__main__':
     dim = 3
-    num = 2
+    num = 10
     coords = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords[i][1] = -1 * coords[i][0] - 10
@@ -261,7 +261,7 @@ if __name__ == '__main__':
         coords2[i][1] = coords2[i][0] - 10
         coords2[i + num][1] = -1 * coords2[i + num][0] + 10
 
-    num = 2
+    num = 20
     coords3 = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords3[i][1] = np.random.random_sample() * (-1 * coords3[i][0] - 10)
