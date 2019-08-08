@@ -4,7 +4,7 @@ import numpy as np
 from scipy import *
 
 class GD_Optimizer():
-    def __init__(self, locs, radii, init_loc, theta=0.003, l_max=10000, eps=1e-7, c=3):
+    def __init__(self, locs, radii, init_loc, mode, theta=0.003, l_max=10000, eps=1e-7, c=3):
         self.dataPoints = locs
         self.num_points = len(self.dataPoints)
         self.testRadius = radii
@@ -15,6 +15,7 @@ class GD_Optimizer():
         self.c = c
         self.w1 = (7/3)
         self.w2 = (7/3)
+        self.cost_mode = mode
 
     # initial point is the average of the coordinates
     def ini_posit(self, dataPoints):

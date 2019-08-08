@@ -12,16 +12,17 @@ class GCO():
         self.root_loc = root_loc
         self.root_r = r_init
         self.leaf_locs = leaf_locs
-        self.max_l = 5
+        self.max_l = 2
         self.merge_threshold = 0.25
         self.prune_threshold = 5
-        self.optimizer = SA_Optimizer
-        self.optimizer2 = GD_Optimizer
+        self.optimizer2 = SA_Optimizer
+        self.optimizer = GD_Optimizer
         self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
+        self.cost_mode = 'MC'
         print("max iter: %d" % self.max_iter)
 
     def initialize(self):
-        locs = self.leaf_locs + [self.root_loc]
+        locs = np.concatenate((self.leaf_locs, np.array([self.root_loc])))
         opt_point_loc = self.get_centroid(locs)
         opt_point = self.VN.add_branching_point(opt_point_loc)
         leaf_radii = [self.root_r] + [self.VN.r_0 for n in range(len(self.leaf_locs))]
@@ -46,9 +47,9 @@ class GCO():
         print("node %d neighbors: %s" % (node, neighbors))
         print("node %d neighbor locs: %s" % (node, neighbor_locs))
         print("node %d neighbor radii: %s" % (node, neighbor_radii))
-        local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
+        local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
         new_loc, new_radii, cost = local_optimizer.optimize()
-        # local_optimizer2 = self.optimizer2(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'])
+        # local_optimizer2 = self.optimizer2(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
         # new_loc2, new_radii2, cost2 = local_optimizer2.optimize()
         print("node %d new loc: %s" % (node, new_loc))
         print("node %d new radii: %s" % (node, new_radii))
@@ -131,9 +132,9 @@ class GCO():
     def get_centroid(self, node_locs):
         return tuple([sum(x) / len(x) for x in zip(*node_locs)])
 
-    def local_cost(self, edge, mode='PC'):
+    def local_cost(self, edge):
         node1, node2 = edge
-        if mode == 'MC':
+        if self.cost_mode == 'MC':
             return self.VN.tree[node1][node2]['radius'] ** 2 * self.VN.tree[node1][node2]['length']
         else:
             return (self.VN.tree[node1][node2]['radius'] ** 2 + self.VN.tree[node1][node2]['radius'] ** (-4)) * self.VN.tree[node1][node2]['length']
@@ -142,15 +143,15 @@ class GCO():
         cost_list = [self.local_cost(edge) for edge in list(self.VN.tree.edges)]
         return np.sum(cost_list)
 
-    def local_derivative(self, node, neighbors, mode='PC'):
-        if mode == 'MC':
+    def local_derivative(self, node, neighbors):
+        if self.cost_mode == 'MC':
             vecs = [self.VN.tree[node][n]['radius'] ** 2 * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
         else:
             vecs = [(self.VN.tree[node][n]['radius'] ** 2 + self.VN.tree[node][n]['radius'] ** (-4)) * ((self.VN.tree.nodes[n]['loc'] - self.VN.tree.nodes[node]['loc']) / self.VN.tree[node][n]['length']) for n in neighbors]
         return np.sum(vecs, axis=0)
 
-    def rupture_strength(self, pull_force, new_edge_r, mode='PC'):
-        if mode == 'MC':
+    def rupture_strength(self, pull_force, new_edge_r):
+        if self.cost_mode == 'MC':
             return pull_force - new_edge_r ** 2
         else:
             return pull_force - new_edge_r ** 2 - new_edge_r ** (-4)
@@ -221,42 +222,33 @@ class GCO():
             xyz = np.array([self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.nodes])
             # scalar colors
             scalars = np.array(list(self.VN.tree.nodes)) + 5
-
-            mlab.figure(1, bgcolor=(0, 0, 0))
+            scalars[0] = 20
+            mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
-            mlab.points3d(0, -10, 0,
-                        scale_factor=1,
-                        scale_mode='none',
-                        colormap='Blues',
-                        resolution=40)
-            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2],
-                        scalars,
-                        scale_factor=0.5,
-                        scale_mode='none',
-                        colormap='Blues',
-                        resolution=20)
-
+            
+            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)    
+            mlab.points3d(xyz[0][0], xyz[0][1], xyz[0][2], resolution=40)
             pts.mlab_source.dataset.lines = np.array(list(self.VN.tree.edges()))
-            tube = mlab.pipeline.tube(pts, tube_radius=0.05)
-            mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
 
+            tube = mlab.pipeline.tube(pts, tube_radius=0.05)
+            mlab.pipeline.surface(tube, color=(0, 0, 0))
+            mlab.axes()
             mlab.show()
 
 if __name__ == '__main__':
     dim = 3
-    num = 10
+    num = 2
     coords = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords[i][1] = -1 * coords[i][0] - 10
         coords[i + num][1] = coords[i + num][0] + 10
-
 
     coords2 = np.random.rand(2 * num, dim) * (10)
     for i in range(num):
         coords2[i][1] = coords2[i][0] - 10
         coords2[i + num][1] = -1 * coords2[i + num][0] + 10
 
-    num = 20
+    num = 2
     coords3 = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords3[i][1] = np.random.random_sample() * (-1 * coords3[i][0] - 10)
@@ -271,8 +263,8 @@ if __name__ == '__main__':
     coords3 = np.concatenate((coords3, coords4))
     coords = np.concatenate((coords, coords3))
 
-    for i in range(len(coords)):
-        coords[i][2] = (100 - coords[i][0] ** 2 - coords[i][1] ** 2) ** (1 / 2)
+    # for i in range(len(coords)):
+    #     coords[i][2] = (100 - coords[i][0] ** 2 - coords[i][1] ** 2) ** (1 / 2)
 
     print(coords)
     #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
