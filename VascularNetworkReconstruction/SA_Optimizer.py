@@ -7,6 +7,7 @@ class SA_Optimizer():
         self.num_points = len(self.dataPoints)
         self.testRadii = [radii]
         self.testMedians = [init_loc]
+        self.cost_mode = mode
         self.count = 0
         self.T = 1
         self.a = 0.99
@@ -16,7 +17,7 @@ class SA_Optimizer():
         self.max_try = 10
         self.costs = [self.cost(self.testMedians[self.count], self.testRadii[self.count])]
         self.dim = len(self.dataPoints[0])
-        self.cost_mode = mode
+        
 
     def move(self):
         loc_new = self.testMedians[self.count] + (2 * np.random.rand(1, self.dim)[0] - 1) * 0.05 * self.T * self.get_loc_range()

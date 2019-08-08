@@ -15,8 +15,8 @@ class GCO():
         self.max_l = 2
         self.merge_threshold = 0.25
         self.prune_threshold = 5
-        self.optimizer2 = SA_Optimizer
-        self.optimizer = GD_Optimizer
+        self.optimizer = SA_Optimizer
+        self.optimizer2 = GD_Optimizer
         self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
         self.cost_mode = 'MC'
         print("max iter: %d" % self.max_iter)
@@ -111,8 +111,8 @@ class GCO():
                 new_edge_r, _ = self.VN.split_radius(node, np.array(neighbors)[edges_to_split])
                 pull_force = np.linalg.norm(self.local_derivative(node, np.array(neighbors)[edges_to_split]))
                 rs = self.rupture_strength(pull_force, new_edge_r)
-                # print("\tedges: %s" % edges_to_split)
-                # print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
+                print("\tedges: %s" % edges_to_split)
+                print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
                 if rs > max_rs:
                     max_rs = rs
                     target_idx = i
@@ -173,7 +173,7 @@ class GCO():
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
             self.split(n)
-        self.visualize()
+            self.visualize()
 
     def GCO_opt(self):
         cur_l = self.max_l
@@ -219,20 +219,25 @@ class GCO():
             #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
             plt.show()
         else:
+            fig = mlab.figure("3D")
             xyz = np.array([self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.nodes])
+            labels = [str(n) for n in self.VN.tree.nodes]
             # scalar colors
             scalars = np.array(list(self.VN.tree.nodes)) + 5
             scalars[0] = 20
             mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
             
-            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)    
+            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
+            mlab.axes() 
             mlab.points3d(xyz[0][0], xyz[0][1], xyz[0][2], resolution=40)
-            pts.mlab_source.dataset.lines = np.array(list(self.VN.tree.edges()))
-
+            pts.mlab_source.dataset.lines = np.array(list(self.VN.tree.edges))
             tube = mlab.pipeline.tube(pts, tube_radius=0.05)
             mlab.pipeline.surface(tube, color=(0, 0, 0))
-            mlab.axes()
+            for i in range(len(xyz)):
+                mlab.text3d(xyz[i][0], xyz[i][1], xyz[i][2], labels[i], scale=(0.5, 0.5, 0.5))
+            fig.scene.disable_render = False
+            
             mlab.show()
 
 if __name__ == '__main__':
