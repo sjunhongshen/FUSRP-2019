@@ -9,7 +9,7 @@ class SA_Optimizer():
         self.testMedians = [init_loc]
         self.count = 0
         self.T = 1
-        self.a = 0.95
+        self.a = 0.99
         self.w1 = 6
         self.w2 = 6
         self.c = 3
