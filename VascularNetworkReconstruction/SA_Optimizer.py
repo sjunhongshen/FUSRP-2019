@@ -18,7 +18,6 @@ class SA_Optimizer():
         self.costs = [self.cost(self.testMedians[self.count], self.testRadii[self.count])]
         self.dim = len(self.dataPoints[0])
         
-
     def move(self):
         loc_new = self.testMedians[self.count] + (2 * np.random.rand(1, self.dim)[0] - 1) * 0.05 * self.T * self.get_loc_range()
         rand = np.concatenate((np.array([0.5]), np.random.rand(1, self.num_points - 1)[0]))

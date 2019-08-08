@@ -43,17 +43,17 @@ class GCO():
         neighbors[root_idx] = non_root
         neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in neighbors]
-        print("node %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
-        print("node %d neighbors: %s" % (node, neighbors))
-        print("node %d neighbor locs: %s" % (node, neighbor_locs))
-        print("node %d neighbor radii: %s" % (node, neighbor_radii))
+        print("\tnode %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
+        print("\tnode %d neighbors: %s" % (node, neighbors))
+        # print("\tnode %d neighbor locs: %s" % (node, neighbor_locs))
+        print("\tnode %d neighbor radii: %s" % (node, neighbor_radii))
         local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
         new_loc, new_radii, cost = local_optimizer.optimize()
         # local_optimizer2 = self.optimizer2(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
         # new_loc2, new_radii2, cost2 = local_optimizer2.optimize()
-        print("node %d new loc: %s" % (node, new_loc))
-        print("node %d new radii: %s" % (node, new_radii))
-        print("node %d cost: %f" % (node, cost))
+        print("\tnode %d new loc: %s" % (node, new_loc))
+        print("\tnode %d new radii: %s" % (node, new_radii))
+        print("\tnode %d cost: %f" % (node, cost))
         self.VN.move_node(node, new_loc)
         i = 0
         for n in neighbors:
@@ -101,7 +101,7 @@ class GCO():
         neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         root_idx = np.argmax(neighbor_edge_radii)
         edges_to_split, max_rs = self.split_two_edges(node, root_idx)
-        print("node %d split start: %s" % (node, edges_to_split))
+        # print("node %d split start: %s" % (node, edges_to_split))
         while True:
             target_idx = None
             for i in range(neighbor_num):
@@ -111,8 +111,8 @@ class GCO():
                 new_edge_r, _ = self.VN.split_radius(node, np.array(neighbors)[edges_to_split])
                 pull_force = np.linalg.norm(self.local_derivative(node, np.array(neighbors)[edges_to_split]))
                 rs = self.rupture_strength(pull_force, new_edge_r)
-                print("\tedges: %s" % edges_to_split)
-                print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
+                # print("\tedges: %s" % edges_to_split)
+                # print("\tnew r: %f pull force: %f rs: %f" % (new_edge_r, pull_force, rs))
                 if rs > max_rs:
                     max_rs = rs
                     target_idx = i
@@ -173,7 +173,7 @@ class GCO():
             if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
                 continue
             self.split(n)
-            self.visualize()
+        self.visualize()
 
     def GCO_opt(self):
         cur_l = self.max_l
@@ -184,24 +184,24 @@ class GCO():
             print("\nItearation %d" % cur_iter)
             diff_flag = True
             i = 0
-            self.visualize()
             while diff_flag and i <= self.max_iter:
                 cost_before = self.global_cost()
-                print("Itearation %d[%d]" % (cur_iter, i))
+                print("\nItearation %d[%d]" % (cur_iter, i))
                 print("cost before: %f" % cost_before)
                 self.local_opt()
                 cost_after = self.global_cost()
                 print("cost after: %f" % cost_after)
                 diff_flag = (cost_before != cost_after)
                 i += 1
-            self.visualize()
             self.VN.reorder_nodes()
             cur_level = self.VN.get_max_level()
             print("cur_level: %d" % cur_level)
             if cur_level >= self.prune_threshold:
                 self.VN.prune(cur_l)
+                self.visualize()
                 count_l += 1
                 self.VN.reconnect()
+                self.visualize()
             if count_l == 3:
                 cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
@@ -219,25 +219,33 @@ class GCO():
             #nx.draw_networkx_edge_labels(self.VN.tree, locs, edge_labels=label2)
             plt.show()
         else:
-            fig = mlab.figure("3D")
-            xyz = np.array([self.VN.tree.nodes[n]['loc'] for n in self.VN.tree.nodes])
-            labels = [str(n) for n in self.VN.tree.nodes]
-            # scalar colors
+            nodes = dict()
+            coords = list()
+            connections = list()
+            labels = list()
+            for edge in list(self.VN.tree.edges):
+                node1, node2 = edge
+                if not node1 in nodes:
+                    nodes[node1] = len(coords)
+                    coords.append(self.VN.tree.nodes[node1]['loc'])
+                    labels.append(str(node1))
+                if not node2 in nodes:
+                    nodes[node2] = len(coords)
+                    coords.append(self.VN.tree.nodes[node2]['loc'])
+                    labels.append(str(node2))
+                connections.append([nodes[node1], nodes[node2]])
+            coords = np.array(coords)
             scalars = np.array(list(self.VN.tree.nodes)) + 5
-            scalars[0] = 20
             mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
-            
-            pts = mlab.points3d(xyz[:, 0], xyz[:, 1], xyz[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
+            pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
             mlab.axes() 
-            mlab.points3d(xyz[0][0], xyz[0][1], xyz[0][2], resolution=40)
-            pts.mlab_source.dataset.lines = np.array(list(self.VN.tree.edges))
+            mlab.points3d(coords[0][0], coords[0][1], coords[0][2], resolution=40)
+            pts.mlab_source.dataset.lines = connections
             tube = mlab.pipeline.tube(pts, tube_radius=0.05)
             mlab.pipeline.surface(tube, color=(0, 0, 0))
-            for i in range(len(xyz)):
-                mlab.text3d(xyz[i][0], xyz[i][1], xyz[i][2], labels[i], scale=(0.5, 0.5, 0.5))
-            fig.scene.disable_render = False
-            
+            for i in range(len(coords)):
+                mlab.text3d(coords[i][0], coords[i][1], coords[i][2], labels[i], scale=(0.5, 0.5, 0.5))      
             mlab.show()
 
 if __name__ == '__main__':
