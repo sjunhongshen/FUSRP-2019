@@ -3,154 +3,198 @@
 #include <math.h>
 #include "SimAnneal.h"
 
-double SA(double *x, double *y, double *z, int imax)
+double SA(double *x_given, double *y_given, double *z_given, double *r_given, int imax_given)
 {
-    double pa, prob, sumx=0, sumy=0, sumz=0;
+    double pa, prob, sumx = 0, sumy = 0, sumz = 0;
     double cold, cmin = 1e+20, cnew, xnew, ynew, znew;
-    double T = 1, a = 0.999;
-    int i, iter=0, O = 2;
-    double rangex, rangey, rangez;
-    FILE *fp, *fp2;
+    double T = 1, a = 0.99;
+    int i, iter = 0, O = 5;
+    double rangex, rangey, rangez, ranger;
+    // FILE *fp, *fp2;
+    imax = imax_given;
 
-
-    for (i=0; i<imax; i++)
+    for (i = 0; i < imax; i++)
     {
-        sumx = sumx + x[i];
-        sumy = sumy + y[i];
-        sumz = sumz + z[i];
-    }
-    x[imax] = sumx/imax;
-    y[imax] = sumy/imax;
-    z[imax] = sumz/imax;
-    cold=CostCal(x[imax], y[imax], z[imax]);
-
-    maxmin(&rangex, &rangey, &rangez);
-
-    fp = fopen ("Data.csv","w");
-    if(fp == NULL){
-    printf("Couldn't open file\n");
-    return 1;
+        x[i] = x_given[i];
+        y[i] = y_given[i];
+        z[i] = z_given[i];
+        r[i] = r_given[i];
+        sumx += x[i];
+        sumy += y[i];
+        sumz += z[i];
     }
 
-    fp2 = fopen ("Cost.csv","w");
-    if(fp2 == NULL){
-    printf("Couldn't open file\n");
-    return 0;
-    }
-while (T>1e-2)
-{
-    iter++;
-    printf("iter = %d\n", iter);
-    i=0;
-    while (i<O)
+    x[imax] = sumx / imax;
+    y[imax] = sumy / imax;
+    z[imax] = sumz / imax;
+    cold = CostCal(x[imax], y[imax], z[imax]);
+
+    // fp = fopen ("Data.csv","w");
+    // if(fp == NULL){
+    // printf("Couldn't open file\n");
+    // return 1;
+    // }
+
+    // fp2 = fopen ("Cost.csv","w");
+    // if(fp2 == NULL){
+    // printf("Couldn't open file\n");
+    // return 0;
+    // }
+    while (T > 1e-5)
     {
-        move(&xnew, &ynew, &znew, rangex, rangey, rangez, T);
-        cnew = CostCal(xnew,ynew,znew);
+        iter++;
+        i = 0;
+        while (i < O)
+        {
+            maxmin(&rangex, &rangey, &rangez, &ranger);
+            move(&xnew, &ynew, &znew, rangex, rangey, rangez, ranger, T);
+            cnew = CostCal(xnew, ynew, znew);
+            if (cnew < cmin)
+            {
+                cmin = cnew;
+                xmin = xnew;
+                ymin = ynew;
+                zmin = znew;
+                cold = cnew;
+                x[imax] = xnew;
+                y[imax] = ynew;
+                z[imax] = znew;
+                for (int j = 0; j < imax; j++)
+                    rmin[j] = r[j];
+                break;
+            }
+            prob = exp((cold - cnew) / T);
+            pa = ((double)rand() / (double)RAND_MAX);
 
-        if (cnew<cmin){
-            cmin = cnew;
-            xmin = xnew;
-            ymin = ynew;
-            zmin = znew;
-        }
-        prob = exp((cold-cnew)/T);
-        pa = ((double)rand() / (double)RAND_MAX);
-
-        if (prob>pa){
-            x[imax]=xnew;
-            y[imax]=ynew;
-            z[imax]=znew;
-            Diff(x[imax], y[imax], z[imax]);
-            cold= cnew;
+            if (prob > pa)
+            {
+                x[imax] = xnew;
+                y[imax] = ynew;
+                z[imax] = znew;
+                // Diff(x[imax], y[imax], z[imax]);
+                cold = cnew;
+                // fprintf(fp, "%f,%f,%f\n", x[imax], y[imax], z[imax]);
+                // fprintf(fp2, "%f\n", cold);
+            }
             i++;
-            printf("%d\t%f\t%f\n", i, T, cnew);
-            fprintf(fp, "%f,%f,%f\n", x[imax], y[imax], z[imax]);
-            fprintf(fp2, "%f\n", cold);
         }
+        T *= a;
     }
-    T = T*a;
-}
-if (cmin<cnew){
-    cnew = cmin;
     x[imax] = xmin;
-    y[imax] = ymin;
+    y[imax] = ymin;        
     z[imax] = zmin;
-}
-return cnew;
+    return cmin;
 }
 
-double CostCal (double xp, double yp, double zp)
+double CostCal(double xp, double yp, double zp)
 {
     int i;
-    double cost=0, lisq, c, l[100], r[100], po, mc= 0, pc = 0, pcin;
+    double cost = 0, lisq, l[1024], mc = 0, pc = 0, pcin = 0, penalty = 0;
+    double w0 = 0.1, w1 = 6, w2 = 100;
 
-    r[0] = 30;
-    po = r[0]/(double)(imax-1);
-
-for (i=0; i<imax; i++)
-{
-    if (i != 0){
-    r[i] = pow (po, 1.0/3.0);
+    for (i = 0; i < imax; i++)
+    {
+        lisq = pow((xp - x[i]), 2) + pow((yp - y[i]), 2) + pow((zp - z[i]), 2);
+        l[i] = sqrt(lisq);
+        mc += l[i] * pow(r[i], 2);
+        penalty += pow(get_max(0, r[i] - 2.5), 2) + pow(get_max(0, 0.8 - r[i]), 2);
     }
-    lisq= pow((xp-x[i]),2) + pow((yp-y[i]),2) + pow((zp-z[i]),2);
-    l[i] = sqrt (lisq);
-    mc += l[i]*pow(r[i], 2);
-}
-    cost = mc + (1e+3*l[0]*pow(r[0], -4));
+    cost = w0 * mc + w1 * penalty + (w2 * l[0] * pow(r[0], -4));
+    // printf("mc: %f\n", w0 * mc);
+    // printf("p: %f\n", w1 * penalty);
 
-for (i=1; i<imax; i++)
-{
-    pcin = pow(r[i], 4)/l[i];
-}
-    pc = 1.0/ pcin;
-    cost += (1e+3*pc);
+    for (i = 1; i < imax; i++)
+    {
+        pcin += pow(r[i], 4) / l[i];
+    }
+    pc = 1.0 / pcin;
+    cost += w2 * pc;
+    // printf("cost: %f\n\n", cost);
+
     return cost;
 }
 
-int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, double rangez, double T)
+int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, double rangez, double ranger, double T)
 {
-    *xnew = x[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangex));
-// xnew - new x coordinate, x[imax] - previous x coordinate, ((2*(double)rand()/(double)RAND_MAX)-1) - generates random no. between 0 and 1
-// T-temperature, rangex - entire range of points along x
-    *ynew = y[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangey));
-    *znew = z[imax]+ (((2*(double)rand()/(double)RAND_MAX)-1)*0.05*(T*rangez));
+    *xnew = x[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangex));
+    *ynew = y[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangey));
+    *znew = z[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangez));
+
+    double r_sum = 0;
+    for (int i = 1; i < imax; i++)
+    {
+        r[i] += (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.01 * (T * ranger));
+        r_sum += pow(r[i], 3);
+    }
+    r[0] = pow(r_sum, 1.0 / 3.0);
+    return 0;
 }
 
 
-int maxmin(double *rangex, double *rangey, double *rangez)
+int maxmin(double *rangex, double *rangey, double *rangez, double *ranger)
 {
-    int i;
-    double xmax=0, ymax=0, zmax=0, xmin = x[0], ymin= y[0], zmin= z[0];
-    for (i=0; i<imax; i++)
+    double xmax = x[0], ymax = y[0], zmax = z[0], rmax = r[0], xmin = x[0], ymin = y[0], zmin = z[0], rmin = r[0];
+    for (int i = 0; i < imax; i++)
     {
-        if (x[i]>xmax)
+        if (x[i] > xmax)
             xmax = x[i];
-        if (y[i]>ymax)
+        if (y[i] > ymax)
             ymax = y[i];
-        if (z[i]>zmax)
+        if (z[i] > zmax)
             zmax = z[i];
-        if (x[i]<xmin)
+        if (r[i] > rmax)
+            rmax = r[i];
+        if (x[i] < xmin)
             xmin = x[i];
-        if (y[i]<ymin)
+        if (y[i] < ymin)
             ymin = y[i];
-        if (z[i]<zmin)
+        if (z[i] < zmin)
             zmin = z[i];
+        if (r[i] < rmin)
+            rmin = r[i];
     }
-    *rangex= xmax - xmin;
-    *rangey= ymax - ymin;
-    *rangez= zmax - zmin;
+    *rangex = xmax - xmin;
+    *rangey = ymax - ymin;
+    *rangez = zmax - zmin;
+    *ranger = rmax - rmin;
+    return 0;
 }
 
 double Diff(double xn, double yn, double zn)
 {
     int i;
-    double dco[4]={0,0,0,0};
+    double dco[4] = {0, 0, 0, 0};
 
-    for (i=1;i<=3;i++)
+    for (i = 1;i <= 3;i++)
     {
-        dco[i]=0.0001;
-        d1[i] = (CostCal(xn+dco[1], yn+dco[2], zn+dco[3])-CostCal(xn-dco[1], yn-dco[2], zn-dco[3]))/2*dco[i];
-        d2[i] = (CostCal(xn+dco[1], yn+dco[2], zn+dco[3])-2*CostCal(xn, yn, zn)+CostCal(xn-dco[1], yn-dco[2], zn-dco[3]))/pow(dco[i],2);
-        dco[i]= 0;
+        dco[i] = 0.0001;
+        d1[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / 2 * dco[i];
+        d2[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - 2 * CostCal(xn, yn, zn) + CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / pow(dco[i], 2);
+        dco[i] = 0;
     }
+    return 0;
+}
+
+double get_coord(char c)
+{
+    if (c == 'x')
+        return x[imax];
+    if (c == 'y')
+        return y[imax];
+    if (c == 'z')
+        return z[imax];
+    return 0;
+}
+
+double* get_r()
+{
+    return rmin;
+}
+
+double get_max(double a, double b)
+{
+    if (a > b)
+        return a;
+    else
+        return b;
 }

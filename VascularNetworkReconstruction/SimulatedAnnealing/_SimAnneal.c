@@ -9,79 +9,78 @@ static char SA_docstring[] =
 
 static PyObject *SimAnneal_SA(PyObject *self, PyObject *args);
 
-static PyMethodDef SimAnneal_methods[] = {
+static PyMethodDef SimAnnealMethods[] = {
     {"SA", SimAnneal_SA, METH_VARARGS, SA_docstring},
     {NULL, NULL, 0, NULL}
 };
 
-static struct PyModuleDef SimAnneal_module = {
+static struct PyModuleDef SimAnnealModule = {
    PyModuleDef_HEAD_INIT,
    "SimAnneal",
     SimAnneal_docstring,
    -1,
-    SimAnneal_methods
+    SimAnnealMethods
 };
 
-PyMODINIT_FUNC PyInit__SimAnneal(void)
+PyMODINIT_FUNC PyInit_SimAnneal(void)
 {
-    PyObject *m = PyModule_Create(&SimAnneal_module);
-    if (m == NULL)
-        return NULL;
-
-    return m;
-    /* Load `numpy` functionality. */
-    import_array();
+    return PyModule_Create(&SimAnnealModule);
 }
 
 
 static PyObject *SimAnneal_SA(PyObject *self, PyObject *args)
 {
-    PyObject *x_obj, *y_obj, *z_obj;
-    int i;
+    PyObject *x_obj, *y_obj, *z_obj, *r_obj;
 
     /* Parse the input tuple */
-    if (!PyArg_ParseTuple(args, "OOO", &x_obj, &y_obj, &z_obj))
+    if (!PyArg_ParseTuple(args, "OOOO", &x_obj, &y_obj, &z_obj, &r_obj))
         return NULL;
 	
-	printf("\nInput parsed successfully!\n");
+	// printf("\nInput parsed successfully!\n");
 
-    /* Interpret the input objects as numpy arrays. */
-    PyObject *x_array = PyArray_FROM_OTF(x_obj, NPY_DOUBLE, NPY_IN_ARRAY);
-    PyObject *y_array = PyArray_FROM_OTF(y_obj, NPY_DOUBLE, NPY_IN_ARRAY);
-    PyObject *z_array = PyArray_FROM_OTF(z_obj, NPY_DOUBLE,NPY_IN_ARRAY);
-
-    /* If that didn't work, throw an exception. */
-    if (x_array == NULL || y_array == NULL || z_array == NULL) {
-        Py_XDECREF(x_array);
-        Py_XDECREF(y_array);
-        Py_XDECREF(z_array);
-        return NULL;
-    }
+    PyArrayObject *x_array = (PyArrayObject*) x_obj;
+    PyArrayObject *y_array = (PyArrayObject*) y_obj;
+    PyArrayObject *z_array = (PyArrayObject*) z_obj;
+    PyArrayObject *r_array = (PyArrayObject*) r_obj;
 
     /* How many data points are there? */
     int imax = (int)PyArray_DIM(x_array, 0);
-	printf("imax = %d", imax);
 
     /* Get pointers to the data as C-types. */
     double *x = (double*)PyArray_DATA(x_array);
     double *y = (double*)PyArray_DATA(y_array);
     double *z = (double*)PyArray_DATA(z_array);
+    double *r = (double*)PyArray_DATA(r_array);
 
     /* Call the external C function to compute the cost. */
-    double cost = SA(x, y, z, imax);
+    double cost = SA(x, y, z, r, imax);
+    double x_coord = get_coord('x');
+    double y_coord = get_coord('y'); 
+    double z_coord = get_coord('z');
+    double* r_new = get_r();
 
     /* Clean up. */
-    Py_DECREF(x_array);
-    Py_DECREF(y_array);
-    Py_DECREF(z_array);
+    // Py_DECREF(x_array);
+    // Py_DECREF(y_array);
+    // Py_DECREF(z_array);
+    // Py_DECREF(r_array);
 
-    if (cost < 0.0) {
-        PyErr_SetString(PyExc_RuntimeError,
-                    "SA returned an impossible value.");
+    if (cost < 0.0) 
+    {
+        PyErr_SetString(PyExc_RuntimeError, "SA returned an impossible value.");
         return NULL;
     }
 
-    /* Build the output tuple */
-    PyObject *ret = Py_BuildValue("d", cost);
-    return ret;
+    PyObject* retList = PyList_New(imax + 4);
+    for (int i = 0; i < imax; i++)
+    {
+
+        PyList_SetItem(retList, i, Py_BuildValue("d", r_new[i]));
+    }
+    PyList_SetItem(retList, imax, Py_BuildValue("d", x_coord));
+    PyList_SetItem(retList, imax + 1, Py_BuildValue("d", y_coord));
+    PyList_SetItem(retList, imax + 2, Py_BuildValue("d", z_coord));
+    PyList_SetItem(retList, imax + 3, Py_BuildValue("d", cost));
+
+    return retList;
 }

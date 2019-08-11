@@ -66,6 +66,7 @@ from skan import Skeleton, summarize, csr
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import struct
+from voxel_tool import Voxel
 """
 import ij.process as process
 from ij import IJ, ImagePlus
@@ -432,10 +433,59 @@ def denoise(img_file, write_file):
         write_binvox(new_model, new_f)
 
 def get_coords_file(img_file, fid):
-    #img_file = '/Users/kimihirochin/Desktop/mesh/test_1_thinned_denoised.binvox'
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_>10.binvox'
     with open(img_file, 'rb') as f:
         model = read_as_3d_array(f)
         g, coords, degimg = csr.skeleton_to_csgraph(np.array(model.data), spacing=[1, 1, 1])
+        mask1 = degimg == 1
+        print("%d" %np.count_nonzero(mask1 != 0))
+        mask2 = degimg == 2
+        print("%d" %np.count_nonzero(mask2 != 0))
+        mask3 = degimg >= 3
+        print("%d" %np.count_nonzero(mask3 != 0))
+
+        branch_end = mask1 | mask3
+        edge = mask2
+
+        vol = branch_end
+        size = vol.shape
+        for idx in range(np.prod(size)):
+            idx_arr = np.unravel_index(idx, size)
+            if idx % 10000000 == 0:
+                print(idx)
+            if not vol[idx_arr]:
+                continue
+            voxel = Voxel(idx, size)
+            for i in voxel.get_neighbors(square_size=4):
+                if vol[i]:
+                    vol[i] = False
+        print("%d" %np.count_nonzero(vol != 0))         
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_branch_end.binvox', "xb")
+        new_model = VoxelModel(vol, model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_f)
+
+        vol = edge
+        size = vol.shape
+        for idx in range(np.prod(size)):
+            idx_arr = np.unravel_index(idx, size)
+            if idx % 10000000 == 0:
+                print(idx)
+            if not vol[idx_arr]:
+                continue
+            voxel = Voxel(idx, size)
+            for i in voxel.get_neighbors(square_size=5):
+                if vol[i]:
+                    vol[i] = False
+        print("%d" %np.count_nonzero(vol != 0))  
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_edge_points.binvox', "xb")
+        new_model = VoxelModel(vol, model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_f)
+        exit()
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_deg1.binvox', "xb")
+        new_model = VoxelModel(mask3, model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_f)
+        #print(np.max(degimg))
+        exit()
         degrees = np.diff(g.indptr)
         branching_pts = coords[np.where(degrees >= 3)]
         turning_pts = coords[np.where(degrees == 2)]
@@ -447,7 +497,7 @@ def get_coords_file(img_file, fid):
         return stats
 
 def get_main_struct(img_file, fid):
-    #img_file = '/Users/kimihirochin/Desktop/mesh/test_1_thinned_denoised.binvox'
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_thinned_denoised.binvox'
     with open(img_file, 'rb') as f:
         model = read_as_3d_array(f)
         import cc3d
@@ -460,15 +510,15 @@ def get_main_struct(img_file, fid):
         for segid in range(1, N+1):
             extracted_image = labels_out * (labels_out == segid)
             extracted_image = np.array(np.array(extracted_image, dtype=bool), dtype=int)
-            if np.count_nonzero(extracted_image != 0) > 100:
-                new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_main_structure_%d.binvox' % (fid, count), "xb")
-                new_model = VoxelModel(extracted_image, model.dims, model.translate, model.scale, model.axis_order)
-                write_binvox(new_model, new_f)
+            if np.count_nonzero(extracted_image != 0) > 10:
+                # new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_main_structure_%d.binvox' % (fid, count), "xb")
+                # new_model = VoxelModel(extracted_image, model.dims, model.translate, model.scale, model.axis_order)
+                # write_binvox(new_model, new_f)
                 main = main + extracted_image
                 print("%d: %d" %(segid, np.count_nonzero(extracted_image != 0)))
                 count += 1
         main = np.array(np.array(main, dtype=bool), dtype=int)
-        new_f = open('/Users/kimihirochin/Desktop/mesh/test_%d_main_structure.binvox' % fid, "xb")
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_main_structure_>10.binvox', "xb")
         new_model = VoxelModel(main, model.dims, model.translate, model.scale, model.axis_order)
         write_binvox(new_model, new_f)
 
@@ -476,6 +526,8 @@ def get_main_struct(img_file, fid):
 if __name__ == '__main__':
     import scipy, nibabel
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.skull.label.nii.gz'
+    # get_main_struct(filename,1)
+    get_coords_file(filename,1)
     path = '/Users/kimihirochin/Desktop/mesh/test_1_skull_boundry_1.nii.gz'
     path2 = '/Users/kimihirochin/Desktop/mesh/test_1_skull_boundry_2.nii.gz'
     image_array = nibabel.load(filename).get_data()

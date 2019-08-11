@@ -5,6 +5,7 @@ from mayavi import mlab
 from VascularNetwork import VascularNetwork
 from GD_Optimizer2 import GD_Optimizer
 from SA_Optimizer import SA_Optimizer
+import SimAnneal
 
 class GCO():
     def __init__(self, root_loc, leaf_locs, r_init, f_init, p_init):
@@ -12,11 +13,12 @@ class GCO():
         self.root_loc = root_loc
         self.root_r = r_init
         self.leaf_locs = leaf_locs
-        self.max_l = 2
-        self.merge_threshold = 0.25
+        self.max_l = 3
+        self.merge_threshold = 0.05
         self.prune_threshold = 5
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
+        self.use_C = True
         self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
         self.cost_mode = 'PC'
         print("max iter: %d" % self.max_iter)
@@ -36,19 +38,26 @@ class GCO():
 
     def relax(self, node):
         neighbors = list(self.VN.tree.neighbors(node))
+        neighbor_num = len(neighbors)
         neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         root_idx = np.argmax(neighbor_radii)
         non_root = neighbors[0]
         neighbors[0] = neighbors[root_idx]
         neighbors[root_idx] = non_root
         neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
-        neighbor_locs = [self.VN.tree.nodes[n]['loc'] for n in neighbors]
+        neighbor_locs = np.array([self.VN.tree.nodes[n]['loc'] for n in neighbors])
         print("\tnode %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
         print("\tnode %d neighbors: %s" % (node, neighbors))
-        # print("\tnode %d neighbor locs: %s" % (node, neighbor_locs))
+        print("\tnode %d neighbor locs: %s" % (node, neighbor_locs[:, 0]))
         print("\tnode %d neighbor radii: %s" % (node, neighbor_radii))
-        local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
-        new_loc, new_radii, cost = local_optimizer.optimize()
+        if self.use_C:
+            ret_list = SimAnneal.SA(neighbor_locs[:, 0].copy(), neighbor_locs[:, 1].copy(), neighbor_locs[:, 2].copy(), neighbor_radii)
+            new_radii = np.array(ret_list[:neighbor_num])
+            new_loc = np.array(ret_list[neighbor_num : neighbor_num + 3])
+            cost = ret_list[neighbor_num + 3]
+        else:
+            local_optimizer = self.optimizer(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
+            new_loc, new_radii, cost = local_optimizer.optimize()
         # local_optimizer2 = self.optimizer2(neighbor_locs, neighbor_radii, self.VN.tree.nodes[node]['loc'], self.cost_mode)
         # new_loc2, new_radii2, cost2 = local_optimizer2.optimize()
         print("\tnode %d new loc: %s" % (node, new_loc))
@@ -235,10 +244,9 @@ class GCO():
                     labels.append(str(node2))
                 connections.append([nodes[node1], nodes[node2]])
             coords = np.array(coords)
-            scalars = np.array(list(self.VN.tree.nodes)) + 5
             mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
-            pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scalars, scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
+            pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
             mlab.axes() 
             mlab.points3d(coords[0][0], coords[0][1], coords[0][2], resolution=40)
             pts.mlab_source.dataset.lines = connections
@@ -250,7 +258,7 @@ class GCO():
 
 if __name__ == '__main__':
     dim = 3
-    num = 10
+    num = 5
     coords = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords[i][1] = -1 * coords[i][0] - 10
@@ -261,7 +269,7 @@ if __name__ == '__main__':
         coords2[i][1] = coords2[i][0] - 10
         coords2[i + num][1] = -1 * coords2[i + num][0] + 10
 
-    num = 20
+    num = 10
     coords3 = np.random.rand(2 * num, dim) * (-10)
     for i in range(num):
         coords3[i][1] = np.random.random_sample() * (-1 * coords3[i][0] - 10)

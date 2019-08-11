@@ -1,7 +1,7 @@
 from distutils.core import setup, Extension
 import numpy.distutils.misc_util
 
-c_ext = Extension("_SimAnneal", ["_SimAnneal.c", "SimAnneal.c"])
+c_ext = Extension("SimAnneal", ["SimAnneal.c", "_SimAnneal.c"])
 
 setup(
     name= 'SimAnneal',
