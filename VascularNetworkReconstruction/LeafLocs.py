@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Spyder Editor
-
-This is a temporary script file.
-"""
-
 from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
