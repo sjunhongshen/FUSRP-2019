@@ -1,10 +1,10 @@
 from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
+import pandas as pd #for reading csv files if needed
 import itertools
-#from _SimAnneal import SA
-dim =20
+#from _SimAnneal import SA (may use this later)
+dim =20         
 pts = 50
 n = np.ndarray(shape = (pts,3))
 r = [None]*pts
@@ -28,7 +28,8 @@ class LeafLocs:
         self.z = z
         self.inf= inf
         self.reg = reg
-    
+        
+# Calculates regions of influence for each point
     def influence(self):
         for i in range (pts):
             for j in range (2):
@@ -56,6 +57,7 @@ class LeafLocs:
                 if k>=len(m):
                     break
 
+# Finds overlapping points                
     def Repeat(self):
         repeat = [[0,0]]
         for i in range (pts):
@@ -71,7 +73,8 @@ class LeafLocs:
         #print(repeat)
         print("Repeat = " + str(len(repeat)))
         return repeat
-        
+ 
+# Finds points in the domain not covered by sampled points        
     def DomCheck(self):
         miss = []
         for element in itertools.product(*Coords):
