@@ -1,6 +1,7 @@
 1. In preprocessing.py, preprocess_img(filename1.nii.gz, filename2.nii.gz)
 2. vesseg filename2.nii.gz
-3. vmtksurfacewriter -ifile filename2.nii.gz -ofile filename2.stl
-4. binvox filename2.stl 
-5. thinnvox filename2.binvox
-6. In binvox_rw.py, denoise() / get_main_struct() / get_coords_file()
+3. bin2mesh filename2.nii.gz filename2.vtp
+4. vmtksurfacewriter -ifile filename2.vtp -ofile filename2.stl
+5. binvox filename2.stl 
+6. thinnvox filename2.binvox
+7. In binvox_rw.py, denoise() / get_main_struct() / get_coords_file()

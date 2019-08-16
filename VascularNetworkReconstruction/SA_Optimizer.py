@@ -12,9 +12,10 @@ class SA_Optimizer():
         self.T = 1
         self.a = 0.99
         self.w1 = 6
-        self.w2 = 6
+        self.w2 = 1
+        self.w3 = 1e3
         self.c = 3
-        self.max_try = 10
+        self.max_try = 5
         self.costs = [self.cost(self.testMedians[self.count], self.testRadii[self.count])]
         self.dim = len(self.dataPoints[0])
         
@@ -42,13 +43,17 @@ class SA_Optimizer():
             temp1 = 0.0
             for i in range(self.num_points):
                 temp1 += np.linalg.norm(testMedian - self.dataPoints[i]) * testRadius[i] ** 2
+            temp1 *= self.w1
             temp2 = 0.0
             for i in range(1, len(self.dataPoints)):
                 temp2 += testRadius[i] ** 4 / np.linalg.norm(testMedian - self.dataPoints[i])
             temp2 = 1 / temp2 + np.linalg.norm(testMedian - self.dataPoints[0]) / testRadius[0] ** 4
+            temp2 *= self.w2
             temp3 = 0.0
             for i in range(self.num_points):
                 temp3 += self.penalty(testRadius, i)
+            temp3 *= self.w3
+            # print("mc: %f pc: %f penalty: %f" % (temp1, temp2, temp3))
             return temp1 + temp2 + temp3
 
     def optimize(self):
@@ -77,10 +82,12 @@ class SA_Optimizer():
         return self.testMedians[min_idx], self.testRadii[min_idx], self.costs[min_idx]
 
     def get_loc_range(self):
-        return np.max(self.testMedians) - np.min(self.testMedians)
+        # return np.max(self.testMedians) - np.min(self.testMedians)
+        return 20
 
     def get_radius_range(self):
-        return np.max(self.testRadii) - np.min(self.testRadii)
+        # return np.max(self.testRadii) - np.min(self.testRadii)
+        return 2
 
     def get_first_r(self, testRadius):
         return ((np.sum(testRadius ** self.c) - testRadius[0] ** self.c)) ** (1 / self.c)

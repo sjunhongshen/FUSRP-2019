@@ -74,6 +74,91 @@ from sc.fiji.skeletonize3D import Skeletonize3D_
 from sc.fiji.analyzeSkeleton import AnalyzeSkeleton_, Point
 """
 
+class VoxelGrid(object):
+    
+    def __init__(self, points, x_y_z=[1, 1, 1], bb_cuboid=True, build=True):
+        """
+        Parameters
+        ----------         
+        points: (N,3) ndarray
+                The point cloud from wich we want to construct the VoxelGrid.
+                Where N is the number of points in the point cloud and the second
+                dimension represents the x, y and z coordinates of each point.
+        
+        x_y_z:  list
+                The segments in wich each axis will be divided.
+                x_y_z[0]: x axis 
+                x_y_z[1]: y axis 
+                x_y_z[2]: z axis
+
+        bb_cuboid(Optional): bool
+                If True(Default):   
+                    The bounding box of the point cloud will be adjusted
+                    in order to have all the dimensions of equal lenght.                
+                If False:
+                    The bounding box is allowed to have dimensions of different sizes.
+        """
+        self.points = points
+
+        xyzmin = np.min(points, axis=0) - 0.001
+        xyzmax = np.max(points, axis=0) + 0.001
+
+        if bb_cuboid:
+            #: adjust to obtain a  minimum bounding box with all sides of equal lenght 
+            diff = max(xyzmax-xyzmin) - (xyzmax-xyzmin)
+            xyzmin = xyzmin - diff / 2
+            xyzmax = xyzmax + diff / 2
+        
+        self.xyzmin = xyzmin
+        self.xyzmax = xyzmax
+
+        segments = []
+        shape = []
+
+        for i in range(3):
+            # note the +1 in num 
+            if type(x_y_z[i]) is not int:
+                raise TypeError("x_y_z[{}] must be int".format(i))
+            s, step = np.linspace(xyzmin[i], xyzmax[i], num=(x_y_z[i] + 1), retstep=True)
+            segments.append(s)
+            shape.append(step)
+        
+        self.segments = segments
+
+        self.shape = shape
+
+        self.n_voxels = x_y_z[0] * x_y_z[1] * x_y_z[2]
+        self.n_x = x_y_z[0]
+        self.n_y = x_y_z[1]
+        self.n_z = x_y_z[2]
+        
+        self.id = "{},{},{}-{}".format(x_y_z[0], x_y_z[1], x_y_z[2], bb_cuboid)
+
+        if build:
+            self.build()
+
+
+    def build(self):
+
+        structure = np.zeros((len(self.points), 4), dtype=int)
+
+        structure[:,0] = np.searchsorted(self.segments[0], self.points[:,0]) - 1
+
+        structure[:,1] = np.searchsorted(self.segments[1], self.points[:,1]) - 1
+
+        structure[:,2] = np.searchsorted(self.segments[2], self.points[:,2]) - 1
+
+        # i = ((y * n_x) + x) + (z * (n_x * n_y))
+        structure[:,3] = ((structure[:,1] * self.n_x) + structure[:,0]) + (structure[:,2] * (self.n_x * self.n_y)) 
+        
+        self.structure = structure
+
+        vector = np.zeros(self.n_voxels)
+        count = np.bincount(self.structure[:,3])
+        vector[:len(count)] = count
+
+        self.vector = vector.reshape(self.n_z, self.n_y, self.n_x)
+
 class VoxelModel(object):
     """ Holds a binvox model.
     data is either a three-dimensional numpy boolean array (dense representation)
@@ -373,18 +458,18 @@ def get_coords_file(img_file, fid):
         edge = mask2
 
         vol1 = branch_end
-        size = vol1.shape
-        for idx in range(np.prod(size)):
-            idx_arr = np.unravel_index(idx, size)
-            if idx % 10000000 == 0:
-                print(idx)
-            if not vol1[idx_arr]:
-                continue
-            voxel = Voxel(idx, size)
-            for i in voxel.get_neighbors(square_size=8):
-                if vol1[i]:
-                    vol1[i] = False
-        print("%d" %np.count_nonzero(vol1 != 0))         
+        # size = vol1.shape
+        # for idx in range(np.prod(size)):
+        #     idx_arr = np.unravel_index(idx, size)
+        #     if idx % 10000000 == 0:
+        #         print(idx)
+        #     if not vol1[idx_arr]:
+        #         continue
+        #     voxel = Voxel(idx, size)
+        #     for i in voxel.get_neighbors(square_size=8):
+        #         if vol1[i]:
+        #             vol1[i] = False
+        # print("%d" %np.count_nonzero(vol1 != 0))         
         # new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_branch_end.binvox', "xb")
         # new_model = VoxelModel(vol, model.dims, model.translate, model.scale, model.axis_order)
         # write_binvox(new_model, new_f)
@@ -398,7 +483,7 @@ def get_coords_file(img_file, fid):
             if not vol2[idx_arr]:
                 continue
             voxel = Voxel(idx, size)
-            for i in voxel.get_neighbors(square_size=10):
+            for i in voxel.get_neighbors(square_size=12):
                 if vol2[i]:
                     vol2[i] = False
         print("%d" %np.count_nonzero(vol2 != 0))  
@@ -407,17 +492,17 @@ def get_coords_file(img_file, fid):
         # write_binvox(new_model, new_f)
 
         vol = vol1 | vol2
-        size = vol.shape
-        for idx in range(np.prod(size)):
-            idx_arr = np.unravel_index(idx, size)
-            if idx % 10000000 == 0:
-                print(idx)
-            if not vol[idx_arr]:
-                continue
-            voxel = Voxel(idx, size)
-            for i in voxel.get_neighbors(square_size=5):
-                if vol[i]:
-                    vol[i] = False
+        # size = vol.shape
+        # for idx in range(np.prod(size)):
+        #     idx_arr = np.unravel_index(idx, size)
+        #     if idx % 10000000 == 0:
+        #         print(idx)
+        #     if not vol[idx_arr]:
+        #         continue
+        #     voxel = Voxel(idx, size)
+        #     for i in voxel.get_neighbors(square_size=5):
+        #         if vol[i]:
+        #             vol[i] = False
         print("%d" %np.count_nonzero(vol != 0))  
         new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_image_pts.binvox', "xb")
         new_model = VoxelModel(vol, model.dims, model.translate, model.scale, model.axis_order)
@@ -461,22 +546,96 @@ def get_main_struct(img_file, fid):
         write_binvox(new_model, new_f)
 
 def sample_points():
-    path1 = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_0.8_5.nii.gz'
-    path2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure.nii.gz'
-    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure.binvox'
-    vol = nibabel.load(path1).get_data()
-    aff = nibabel.load(path1).affine
-    header = nibabel.load(path1).header
-    size = vol.shape
+    # path = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_resize_1.nii.gz'
+    # path1 = '/Users/kimihirochin/Desktop/mesh/test_1.hemi.label.nii.gz'
+    # path2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure.nii.gz'
+    # img_file = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_0.8_6.binvox'
+    # vol = nibabel.load(path1).get_data()
+    # aff = nibabel.load(path1).affine
+    # header = nibabel.load(path1).header
+    # size = vol.shape
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface_0.99.binvox'
+    # out = np.zeros(size)
+    # for idx in range(np.prod(size)):
+    #     idx_arr = np.unravel_index(idx, size)
+    #     if vol[idx_arr] == 0:
+    #         out[idx_arr] = 1
+    # img = nibabel.Nifti1Image(out, aff, header)
+    # path = '/Users/kimihirochin/Desktop/mesh/test_1_cere.nii.gz'
+    # nibabel.save(img, path)
+    # exit()
 
+    with open(img_file, 'rb') as f:
+        model = read_as_3d_array(f)
+        vol = model.data
+        size = vol.shape
+        print(np.count_nonzero(vol != 0))
+
+        # model2 = read_as_3d_array(r)
+        # vol2 = model2.data
+        # size2 = vol2.shape
+        # print(np.count_nonzero(vol2 != 0))
+        # exit()
+        out = np.zeros(size)
+
+        for idx in range(np.prod(size)):
+            if idx % 10000000 == 0:
+                print(idx)
+            idx_arr = np.unravel_index(idx, size)
+            if not vol[idx_arr]:
+                continue
+            out[idx_arr] = 1
+            voxel = Voxel(idx, size)
+            for i in voxel.get_neighbors(square_size=5):
+                if vol[i]:
+                    vol[idx_arr] = 0
+
+        print(np.count_nonzero(out != 0))
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface_0.99_2.binvox', "xb")
+        new_model = VoxelModel(np.array(out, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_f)
+        exit()
+    # for idx in range(np.prod(size)):
+    #     idx_arr = np.unravel_index(idx, size)
+    #     if not vol[idx_arr]:
+    #         continue
+    #     voxel = Voxel(idx, size)
+    #     for i in voxel.get_neighbors(square_size=1):
+    #         if vol[i]:
+    #             rand = np.random.random()
+    #             if rand > 0.995:
+    #                 out[idx_arr] = 1
+    #             break
+    # img = nibabel.Nifti1Image(out, aff)
+    # nibabel.save(img, path)
+    # exit()
     # with open(img_file, 'rb') as f:
     #     model = read_as_3d_array(f).data
     #     img = nibabel.Nifti1Image(model, aff, nibabel.load(path1).header)
     #     nibabel.save(img, path2)
-   #  #     exit()
-    out = np.zeros(size, dtype=int)
-    for idx in range(np.prod(size)):
-        idx_arr = np.unravel_index(idx, size)
+    #  #     exit()
+    # print(np.count_nonzero(vol != 0))
+
+    # for idx in range(np.prod(size)):
+    #     idx_arr = np.unravel_index(idx, size)
+    #     if vol[idx_arr]:
+    #         print(idx_arr)
+    # print("!")
+    aff = nibabel.load(path1).affine
+    header = nibabel.load(path1).header
+    with open(img_file, 'rb') as f:
+        vol = read_as_3d_array(f).data
+        size = vol.shape
+        img = nibabel.Nifti1Image(np.array(vol, dtype=int), aff)
+        nibabel.save(img, path)
+        exit()
+        print(np.count_nonzero(vol != 0))
+        for idx in range(np.prod(size)):
+            idx_arr = np.unravel_index(idx, size)
+            if vol[idx_arr]:
+                print(idx_arr)
+    
+    exit()
     #     if idx_arr == (185, 310, 70):
     #         print("!")
     #         voxel = Voxel(idx, size)
@@ -486,21 +645,21 @@ def sample_points():
     # img = nibabel.Nifti1Image(vol, aff, header)
     # path = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_0.8_5.nii.gz'
     # nibabel.save(img, path)
+    # # exit()
+    #     if idx % 1000000 == 0:
+    #         print(idx)
+    #     if vol[idx_arr]:
+    #         voxel = Voxel(idx, size)
+    #         for i in voxel.get_neighbors(square_size=1):
+    #             if not vol[i]:
+    #                 rand = np.random.random()
+    #                 if rand > 0.6:
+    #                     out[idx_arr] = 1
+    #                 break
+    # img = nibabel.Nifti1Image(out, aff, header)
+    # path = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_0.8_6.nii.gz'
+    # nibabel.save(img, path)
     # exit()
-        if idx % 1000000 == 0:
-            print(idx)
-        if vol[idx_arr]:
-            voxel = Voxel(idx, size)
-            for i in voxel.get_neighbors(square_size=1):
-                if not vol[i]:
-                    rand = np.random.random()
-                    if rand > 0.6:
-                        out[idx_arr] = 1
-                    break
-    img = nibabel.Nifti1Image(out, aff, header)
-    path = '/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_0.8_6.nii.gz'
-    nibabel.save(img, path)
-    exit()
 
         #     continue
         # voxel = Voxel(idx, size)
@@ -520,15 +679,77 @@ def sample_points():
     img_file = '/Users/kimihirochin/Desktop/mesh/test_1_thinned_denoised.binvox'
     with open(img_file, 'rb') as f:
         model = read_as_3d_array(f)
-        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_surface_points.binvox', "xb")
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_near_cortex_resize_2.binvox', "xb")
         new_model = VoxelModel(out, model.dims, model.translate, model.scale, model.axis_order)
         write_binvox(new_model, new_f)
         exit()
+
+def get_edges():
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_>10.binvox'
+    pt_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface_0.999.binvox'
+    with open(img_file, 'rb') as f, open(pt_file, 'rb') as p1:
+        model = read_as_3d_array(f)
+        pts = read_as_3d_array(p1).data
+        pts_coords = np.transpose(dense_to_sparse(pts), (1, 0))
+        import cc3d
+        labels_in = np.array(model.data)
+        labels_out = cc3d.connected_components(labels_in)
+
+        N = np.max(labels_out)
+        edge_list = []
+        for segid in range(1, N+1):
+            extracted_image = labels_out == segid
+            print("id: %d nonzero: %d" % (segid, np.count_nonzero(extracted_image != 0)))
+            skel = Skeleton(extracted_image)
+            for i in range(skel.n_paths):
+                coords = skel.path_coordinates(i)
+                prev = None
+                for c in coords:
+                    c = np.array(c, dtype=int)
+                    for j in range(len(pts_coords)):
+                        if (c == pts_coords[j]).all():
+                            if prev == None:
+                                prev = j
+                            else:
+                                cur = j
+                                edge_list.append([prev, cur])
+                                prev = cur
+                            break
+        print(edge_list)
+        print(len(edge_list))
+        np.save('/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface_edge_list.npy', edge_list)
+        exit()
+
+def connect_endpoints():
+    edge_list = np.load('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy')
+    end_pts = []
+    endpt = [edge_list[0][0]]
+    for i in range(1, len(edge_list)):
+        if edge_list[i][0] != edge_list[i - 1][1]:
+            endpt.append(edge_list[i - 1][1])
+            end_pts.append(endpt)
+            endpt = [edge_list[i][0]]
+    if len(endpt) == 1:
+        endpt.append(edge_list[-1][1])
+        end_pts.append(endpt)
+    print(end_pts)
+    exit()
+
 
 
 
 if __name__ == '__main__':
     import scipy, nibabel
+    # get_edges()
+    sample_points()
+    connect_endpoints()
+    edge_list = np.load('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy')
+    other = [[]]
+    for e in other:
+        edge_list.append(e)
+    np.save('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy', edge_list)
+    exit()
+    get_edges()
     sample_points()
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.skull.label.nii.gz'
     # get_main_struct(filename,1)

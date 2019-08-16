@@ -6,35 +6,49 @@ from VascularNetwork import VascularNetwork
 from GD_Optimizer2 import GD_Optimizer
 from SA_Optimizer import SA_Optimizer
 import SimAnneal
+from binvox_rw import read_as_3d_array, dense_to_sparse
 
 class GCO():
-    def __init__(self, root_loc, leaf_locs, r_init, f_init, p_init):
-        self.VN = VascularNetwork(root_loc, leaf_locs, r_init, f_init, p_init)
-        self.root_loc = root_loc
+    def __init__(self, fixed_locs, leaf_locs, r_init, f_init, p_init, edge_list):
+        self.VN = VascularNetwork(fixed_locs, leaf_locs, r_init, f_init, p_init, edge_list)
         self.root_r = r_init
+        self.fixed_locs = fixed_locs
         self.leaf_locs = leaf_locs
+        self.stable_nodes = range(len(self.fixed_locs))
+        self.leaves = range(len(self.fixed_locs), len(self.fixed_locs) + len(self.leaf_locs))
         self.max_l = 3
         self.merge_threshold = 0.05
-        self.prune_threshold = 5
+        self.prune_threshold = 8
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
-        self.use_C = True
-        self.max_iter = np.log2(len(self.leaf_locs) + 1) * 2
+        self.use_C = False
+        self.max_iter = 5
+        # self.max_iter = np.log2(len(self.leaf_locs) + 1)
         self.cost_mode = 'PC'
         print("max iter: %d" % self.max_iter)
 
     def initialize(self):
-        locs = np.concatenate((self.leaf_locs, np.array([self.root_loc])))
-        opt_point_loc = self.get_centroid(locs)
-        opt_point = self.VN.add_branching_point(opt_point_loc)
-        leaf_radii = [self.root_r] + [self.VN.r_0 for n in range(len(self.leaf_locs))]
-        for i in range(len(self.leaf_locs) + 1):
-            self.VN.add_vessel(opt_point, i, leaf_radii[i])
-
-    def local_init(self):
-        for n in self.VN.tree.nodes:
-            self.VN.tree.nodes[n]['relaxed'] = False
-        self.VN.tree.nodes[0]['relaxed'] = True
+        # locs = np.concatenate((self.leaf_locs, np.array([self.root_loc])))
+        # opt_point_loc = self.get_centroid(locs)
+        # opt_point = self.VN.add_branching_point(opt_point_loc)
+        # leaf_radii = [self.root_r] + [self.VN.r_0 for n in range(len(self.leaf_locs))]
+        # for i in range(len(self.leaf_locs) + 1):
+        #     self.VN.add_vessel(opt_point, i, leaf_radii[i])
+        for node in self.stable_nodes:
+            neighbors = np.array(list(self.VN.tree.neighbors(node)))
+            leaf_mask = neighbors > len(self.fixed_locs)
+            if np.sum(leaf_mask) == 0:
+                continue
+            neighbor_leaves = neighbors[leaf_mask]
+            neighbor_leaf_locs = [self.VN.tree.nodes[n]['loc'] for n in neighbor_leaves]
+            locs = np.concatenate((neighbor_leaf_locs, np.array([self.VN.tree.nodes[node]['loc']])))
+            opt_point_loc = self.get_centroid(locs)
+            opt_point = self.VN.add_branching_point(opt_point_loc)
+            # print("initialize opt point %d" % opt_point)
+            for i in neighbor_leaves:
+                self.VN.add_vessel(opt_point, i, self.VN.r_0)
+                self.VN.tree.remove_edge(node, i)
+            self.VN.add_vessel(opt_point, node, (len(neighbor_leaves) * self.VN.r_0 ** 3) ** (1 / 3))
 
     def relax(self, node):
         neighbors = list(self.VN.tree.neighbors(node))
@@ -48,7 +62,6 @@ class GCO():
         neighbor_locs = np.array([self.VN.tree.nodes[n]['loc'] for n in neighbors])
         print("\tnode %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
         print("\tnode %d neighbors: %s" % (node, neighbors))
-        print("\tnode %d neighbor locs: %s" % (node, neighbor_locs[:, 0]))
         print("\tnode %d neighbor radii: %s" % (node, neighbor_radii))
         if self.use_C:
             ret_list = SimAnneal.SA(neighbor_locs[:, 0].copy(), neighbor_locs[:, 1].copy(), neighbor_locs[:, 2].copy(), neighbor_radii)
@@ -68,7 +81,6 @@ class GCO():
         for n in neighbors:
             self.VN.update_radius_and_flow((n, node), new_radii[i])
             i += 1
-        self.VN.tree.nodes[node]['relaxed'] = True
 
     def merge(self, node):
         neighbor_edge_lengths = [self.VN.tree[node][n]['length'] for n in self.VN.tree.neighbors(node)]
@@ -78,7 +90,7 @@ class GCO():
         second_shortest_edge_idx = np.argsort(neighbor_edge_lengths)[1]
         if neighbor_edge_lengths[shortest_edge_idx] / neighbor_edge_lengths[second_shortest_edge_idx] <= self.merge_threshold:
             print("node %d merge" % node)
-            if list(self.VN.tree.neighbors(node))[shortest_edge_idx] == 0:
+            if list(self.VN.tree.neighbors(node))[shortest_edge_idx] in self.stable_nodes:
                 self.VN.merge(list(self.VN.tree.neighbors(node))[shortest_edge_idx], node)
             else:
                 self.VN.merge(node, list(self.VN.tree.neighbors(node))[shortest_edge_idx])
@@ -166,29 +178,30 @@ class GCO():
             return pull_force - new_edge_r ** 2 - new_edge_r ** (-4)
 
     def local_opt(self):
-        self.local_init()
         self.VN.reorder_nodes()
-        for n in range(len(self.VN.tree)):
-            if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
+        for n in range(len(self.VN.tree), 0, -1):
+            if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.relax(n)
-        self.visualize()
-        for n in range(len(self.VN.tree)):
-            if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
+        # self.visualize()
+        for n in range(len(self.VN.tree), 0, -1):
+            if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.merge(n)
-        self.visualize()
-        for n in range(len(self.VN.tree)):
-            if n in range(len(self.leaf_locs) + 1) or n not in self.VN.tree.nodes:
+        # self.visualize()
+        for n in range(len(self.VN.tree), 0, -1):
+            if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.split(n)
         self.visualize()
 
     def GCO_opt(self):
+        self.visualize()
         cur_l = self.max_l
         count_l = 0
         cur_iter = 0
         self.initialize()
+        self.visualize()
         while cur_iter <= self.max_iter:
             print("\nItearation %d" % cur_iter)
             diff_flag = True
@@ -215,6 +228,7 @@ class GCO():
                 cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
             cur_iter += 1
+        self.save_results()
 
     def visualize(self):
         dim = len(self.VN.tree.nodes[0]['loc'])
@@ -232,31 +246,65 @@ class GCO():
             coords = list()
             connections = list()
             labels = list()
+            text_scale = list()
             for edge in list(self.VN.tree.edges):
                 node1, node2 = edge
                 if not node1 in nodes:
                     nodes[node1] = len(coords)
                     coords.append(self.VN.tree.nodes[node1]['loc'])
+                    if node1 in self.stable_nodes:
+                        text_scale.append((5, 5, 5))
+                    else:
+                        text_scale.append((1, 1, 1))
                     labels.append(str(node1))
                 if not node2 in nodes:
                     nodes[node2] = len(coords)
                     coords.append(self.VN.tree.nodes[node2]['loc'])
+                    if node2 in self.stable_nodes:
+                        text_scale.append((5, 5, 5))
+                    else:
+                        text_scale.append((1, 1, 1))
                     labels.append(str(node2))
                 connections.append([nodes[node1], nodes[node2]])
             coords = np.array(coords)
             mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
-            pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=20)   
+            pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=60)   
             mlab.axes() 
-            mlab.points3d(coords[0][0], coords[0][1], coords[0][2], resolution=40)
+            mlab.points3d(coords[0][0], coords[0][1], coords[0][2], resolution=60)
             pts.mlab_source.dataset.lines = connections
-            tube = mlab.pipeline.tube(pts, tube_radius=0.05)
+            tube = mlab.pipeline.tube(pts, tube_radius=0.1)
             mlab.pipeline.surface(tube, color=(0, 0, 0))
             for i in range(len(coords)):
-                mlab.text3d(coords[i][0], coords[i][1], coords[i][2], labels[i], scale=(0.5, 0.5, 0.5))      
+                mlab.text3d(coords[i][0], coords[i][1], coords[i][2], labels[i], scale=text_scale[i])      
             mlab.show()
 
-if __name__ == '__main__':
+    def save_results(self):
+        coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_coords.npy'
+        connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_connections.npy'
+        radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_radii.npy'
+        nodes = dict()
+        coords = list()
+        connections = list()
+        radii = list()
+        for edge in list(self.VN.tree.edges):
+            node1, node2 = edge
+            if not node1 in nodes:
+                nodes[node1] = len(coords)
+                coords.append(self.VN.tree.nodes[node1]['loc'])
+                labels.append(str(node1))
+            if not node2 in nodes:
+                nodes[node2] = len(coords)
+                coords.append(self.VN.tree.nodes[node2]['loc'])
+                labels.append(str(node2))
+            connections.append([nodes[node1], nodes[node2]])
+            radii.append(self.VN.tree[node1][node2]['radius'])
+        np.save(coord_file, coords)
+        np.save(connection_file, connections)
+        np.save(radius_file, radii)
+
+
+def generate_random_points():
     dim = 3
     num = 5
     coords = np.random.rand(2 * num, dim) * (-10)
@@ -284,12 +332,44 @@ if __name__ == '__main__':
     coords3 = np.concatenate((coords3, coords4))
     coords = np.concatenate((coords, coords3))
 
-    # for i in range(len(coords)):
-    #     coords[i][2] = (100 - coords[i][0] ** 2 - coords[i][1] ** 2) ** (1 / 2)
+    return coords
 
-    print(coords)
-    #g = GCO((0,0),[(0,4),(0,1),(1,3),(3,0),(0.5, 0.25),(5,5)],1,10,2)
-    g = GCO((0,-10,0),coords,2.5,10,2)
-    #g.initialize()
-    #print(g.local_derivative(3, [1, 2]))
+def read_coords_from_binvox(fixed_points_file, random_points_file, edge_file, f_all=True, half=False):
+     with open(fixed_points_file, 'rb') as f, open(random_points_file, 'rb') as r:
+        fixed = read_as_3d_array(f)
+        random = read_as_3d_array(r)
+        f_coords = np.transpose(dense_to_sparse(fixed.data), (1, 0)).copy()
+        r_coords = np.transpose(dense_to_sparse(random.data), (1, 0)).copy()
+        if half:
+            f_idx = []
+            for i in range(len(f_coords)):
+                if f_coords[i][0] < 256 and np.random.random() < 0.3:
+                    f_idx.append(i)
+            r_idx = []
+            for i in range(len(r_coords)):
+                if r_coords[i][0] < 256 and np.random.random() < 0.03:
+                    r_idx.append(i)
+        elif not f_all:
+            f_idx = np.random.choice(f_coords.shape[0], 900, replace=False)
+        r_idx = np.random.choice(r_coords.shape[0], 600, replace=False)
+        edge_list = np.load(edge_file)
+        if f_all:
+            return f_coords, r_coords[r_idx], edge_list
+        new_edge_list = []
+        for e in edge_list:
+            if e[0] in f_idx and e[1] in f_idx:
+                new_edge_list.append([np.where(f_idx == e[0])[0][0], np.where(f_idx == e[1])[0][0]])
+        return f_coords[f_idx], r_coords[r_idx], new_edge_list
+
+if __name__ == '__main__':
+    # fixed_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_image_pts.binvox'
+    # random_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_random_pts.binvox'
+    # edge_file = '/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy'
+    fixed_points_file = '/home/jhshen/pointfiles/test_1_image_pts.binvox'
+    random_points_file = '/home/jhshen/pointfiles/test_1_random_pts.binvox'
+    edge_file = '/home/jhshen/pointfiles/test_1_image_edge_list.npy'
+    # fixed_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_branch_end.binvox'
+    # edge_file = '/Users/kimihirochin/Desktop/mesh/test_1_branch_end_edge_list.npy'
+    f_coords, r_coords, new_edge_list = read_coords_from_binvox(fixed_points_file, random_points_file, edge_file)
+    g = GCO(f_coords, r_coords, 2.5, 10, 2, new_edge_list)
     g.GCO_opt()
