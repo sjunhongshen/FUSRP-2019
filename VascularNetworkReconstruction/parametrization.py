@@ -1,6 +1,7 @@
 import numpy as np
 from voxel_tool import Voxel
 from matplotlib import pyplot as plt
+import struct
 
 ############################################################################
 #### Helper Functions
@@ -229,13 +230,12 @@ def choose_surface_points(path):
         model = read_as_3d_array(f)
         surface_points = model.data
         size = surface_points.shape
-        pts_coords = np.transpose(dense_to_sparse(pts), (1, 0))
+        pts_coords = np.transpose(dense_to_sparse(surface_points), (1, 0))
 
-        chosen_points = np.zeros(size, dtype=int)
+        chosen_points = np.zeros(size)
+ 
         for idx in range(np.prod(size)):
             idx_arr = np.unravel_index(idx, size)
-            print("!")
-            exit()
             if not surface_points[idx_arr]:
                 continue
             voxel = Voxel(idx, size)
@@ -248,10 +248,10 @@ def choose_surface_points(path):
             if count >= 10:
                 chosen_points[idx_arr] = 1
 
-        new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_chosen_surface_points.binvox'
+        new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_yaxis.binvox'
         new_file = open(new_filename, "xb")
-        new_model = VoxelModel(chosen_points, model.dims, model.translate, model.scale, model.axis_order)
-        write_binvox(new_model, new_f)
+        new_model = VoxelModel(np.array(chosen_points, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_file)
 
 # TODO: parametrize a slice
 def paramerize_slice(path):
@@ -259,21 +259,21 @@ def paramerize_slice(path):
         model = read_as_3d_array(f)
         surface_points = model.data
         size = surface_points.shape
-        x, y, z = size
-        pts_coords = np.transpose(dense_to_sparse(pts), (1, 0))
+        pts_coords = np.transpose(dense_to_sparse(surface_points), (1, 0))
 
+        surface_points = np.transpose(surface_points, (1, 0, 2))
         paramerized_surface = np.zeros(size, dtype=int)
+        for i in range(512):
+            slice = surface_points[i, :, :]
 
-        for i in range(x):
-            pass
 
         new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_parametrized_surface.binvox'
         new_file = open(new_filename, "xb")
-        new_model = VoxelModel(paramerized_surface, model.dims, model.translate, model.scale, model.axis_order)
-        write_binvox(new_model, new_f)
+        new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
+        write_binvox(new_model, new_file)
 
 
 if __name__ == '__main__':
-    path = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface.nii.gz'
+    path = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface.binvox'
     choose_surface_points(path)
     
