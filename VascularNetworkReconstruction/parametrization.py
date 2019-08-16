@@ -266,7 +266,7 @@ def paramerize_slice(path):
         for i in range(512):
             slice = surface_points[i, :, :]
 
-
+        paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
         new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_parametrized_surface.binvox'
         new_file = open(new_filename, "xb")
         new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
