@@ -29,7 +29,10 @@ class VascularNetwork():
             n1, n2 = edge[0], edge[1]
             self.add_vessel(n1, n2, self.root_r)
         for node in list(self.tree.nodes):
-            if not self.tree.nodes[node]['fixed']:
+            if self.tree.nodes[node]['fixed'] and self.tree.degree[node] < 1:
+                closest = self.find_nearest_fixed(node)
+                self.add_vessel(node, closest, self.r_0)
+            else:
                 closest = self.find_nearest_fixed(node)
                 self.add_vessel(node, closest, self.r_0)
         # end_points = []
@@ -49,8 +52,9 @@ class VascularNetwork():
         #             connected.append(end_points[idx])
         #             break
         # for node in list(self.tree.nodes):
-        #     if self.tree.degree[node] <= 1:
+        #     if self.tree.degree[node] < 1:
         #         print("deg = 0: %d" % node)
+        # exit()
 
 
     def add_branching_point(self, loc, fixed=False, pres=None):
@@ -124,7 +128,7 @@ class VascularNetwork():
                 if node not in self.leaves and node not in self.fixed and dis < min_dis:
                     min_dis = dis
                     nearest_node = node
-                    print("leaf %d is closer to %d with distance %f" % (leaf, nearest_node, min_dis))
+                    # print("leaf %d is closer to %d with distance %f" % (leaf, nearest_node, min_dis))
             self.add_vessel(nearest_node, leaf, self.r_0, self.f_0)
             print("reconnect %d and %d with radius %f" % (leaf, nearest_node, self.r_0))
 
@@ -195,6 +199,24 @@ class VascularNetwork():
                 max_count = np.count_nonzero(neighbor_orders == max_order)
                 self.tree.nodes[node][mode] = max_order if max_count == 1 and mode == 'HS' else max_order + 1
             count_no_label = np.count_nonzero(np.array([self.tree.nodes[n][mode] for n in self.tree.nodes]) == 0)
+
+    def update_final_order(self, mode='HS'):
+        for n in self.tree.nodes:        
+            self.tree.nodes[n][mode] = 1 if self.tree.degree[n] == 1 else 0
+        count_no_label = self.node_count
+        cur_order = 1
+        while count_no_label != 0:
+            for node in self.tree.nodes:
+                if self.tree.nodes[node][mode] != 0:
+                    continue
+                neighbor_orders = np.array([self.tree.nodes[n][mode] for n in self.tree.neighbors(node)])
+                if np.count_nonzero(neighbor_orders == 0) > 1:
+                    continue
+                max_order = np.max(neighbor_orders)
+                max_count = np.count_nonzero(neighbor_orders == max_order)
+                self.tree.nodes[node][mode] = max_order if max_count == 1 and mode == 'HS' else max_order + 1
+            count_no_label = np.count_nonzero(np.array([self.tree.nodes[n][mode] for n in self.tree.nodes]) == 0)
+
 
     def get_max_level(self):
         return np.max(np.array([self.tree.nodes[n]['level'] for n in self.tree.nodes]))

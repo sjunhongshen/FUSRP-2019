@@ -7,7 +7,7 @@ double SA(double *x_given, double *y_given, double *z_given, double *r_given, in
 {
     double pa, prob, sumx = 0, sumy = 0, sumz = 0;
     double cold, cmin = 1e+20, cnew, xnew, ynew, znew;
-    double T = 1, a = 0.99;
+    double T = 1, a = 0.999;
     int i, iter = 0, O = 5;
     double rangex, rangey, rangez, ranger;
     // FILE *fp, *fp2;
@@ -89,17 +89,17 @@ double SA(double *x_given, double *y_given, double *z_given, double *r_given, in
 double CostCal(double xp, double yp, double zp)
 {
     int i;
-    double cost = 0, lisq, l[1024], mc = 0, pc = 0, pcin = 0, penalty = 0;
-    double w0 = 0.1, w1 = 6, w2 = 100;
+    double cost = 0, lisq = 0, l[1024], mc = 0, pc = 0, pcin = 0, penalty = 0;
+    double w0 = 6, w1 = 1e3, w2 = 1;
 
     for (i = 0; i < imax; i++)
     {
         lisq = pow((xp - x[i]), 2) + pow((yp - y[i]), 2) + pow((zp - z[i]), 2);
         l[i] = sqrt(lisq);
         mc += l[i] * pow(r[i], 2);
-        penalty += pow(get_max(0, r[i] - 2.5), 2) + pow(get_max(0, 0.8 - r[i]), 2);
+        penalty += pow(get_max(0, r[i] - 2.5), 2) + pow(get_max(0, 0.5 - r[i]), 2);
     }
-    cost = w0 * mc + w1 * penalty + (w2 * l[0] * pow(r[0], -4));
+    cost = w0 * mc + w1 * penalty + (w2 * l[0] / pow(r[0], 4));
     // printf("mc: %f\n", w0 * mc);
     // printf("p: %f\n", w1 * penalty);
 
@@ -110,7 +110,6 @@ double CostCal(double xp, double yp, double zp)
     pc = 1.0 / pcin;
     cost += w2 * pc;
     // printf("cost: %f\n\n", cost);
-
     return cost;
 }
 
@@ -123,7 +122,7 @@ int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, d
     double r_sum = 0;
     for (int i = 1; i < imax; i++)
     {
-        r[i] += (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.01 * (T * ranger));
+        r[i] += (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * ranger));
         r_sum += pow(r[i], 3);
     }
     r[0] = pow(r_sum, 1.0 / 3.0);
@@ -133,6 +132,11 @@ int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, d
 
 int maxmin(double *rangex, double *rangey, double *rangez, double *ranger)
 {
+    *rangex = 100;
+    *rangey = 100;
+    *rangez = 100;
+    *ranger = 2;
+    return 0;
     double xmax = x[0], ymax = y[0], zmax = z[0], rmax = r[0], xmin = x[0], ymin = y[0], zmin = z[0], rmin = r[0];
     for (int i = 0; i < imax; i++)
     {
