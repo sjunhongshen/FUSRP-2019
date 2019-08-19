@@ -1,25 +1,39 @@
+# -*- coding: utf-8 -*-
+"""
+Spyder Editor
+
+This is a temporary script file.
+"""
+
 from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd #for reading csv files if needed
-import itertools
-#from _SimAnneal import SA (may use this later)
-dim =20         
-pts = 50
-n = np.ndarray(shape = (pts,3))
-r = [None]*pts
-Coords = []
-RoI = np.ndarray(shape = (pts,2,3))
-x_init = np.random.randint(dim, size=pts)
-y_init = np.random.randint(dim, size=pts)
-z_init = np.random.randint(dim, size=pts)
-xp = np.arange(dim)
-yp = np.arange(dim)
-zp = np.arange(dim)
-Coords.append(xp)
-Coords.append(yp)
-Coords.append(zp)
+import pandas as pd
+#import binvox_rw
+#import itertools
+#from _SimAnneal import SA
 
+p = 70
+dim = 10
+#Ewith open('test_1_hemi.binvox', 'rb') as f:
+ #    model = binvox_rw.read_as_3d_array(f)
+
+C = np.array(Pts)
+lam = []
+for [x,y,z] in C:
+    k = [int(x*dim), int(y*dim), int(z*dim)]
+    lam.append(k)
+    
+Coords = np.array(lam)
+lc = len(Coords)
+RoI = np.ndarray(shape = (p,2,3))
+r = [None]*p
+num= int (lc/p)
+x_init = np.random.randint(dim, size=p)
+y_init = np.random.randint(dim, size=p)
+z_init = np.random.randint(dim, size=p)
+
+    
         
 class LeafLocs:
     def __init__(self, x, y, z, inf, reg):
@@ -28,42 +42,40 @@ class LeafLocs:
         self.z = z
         self.inf= inf
         self.reg = reg
-        
-# Calculates regions of influence for each point
+    
     def influence(self):
-        for i in range (pts):
+        for i in range (len(self)):
             for j in range (2):
                 if j == 0:
-                    k = r[0].inf*(j-1)
+                    k = self[0].inf*(j-1)
                 elif j == 1:
-                    k = r[0].inf*(j)
-                r[i].reg[j][:] = [r[i].x + k, r[i].y + k, r[i].z + k]
+                    k = self[0].inf*(j)
+                self[i].reg[j][:] = [self[i].x + k, self[i].y + k, self[i].z + k]
                     
                     
     def Opt(self):
-        m = [None]*(dim**3)
-        while len(m) > 0:
-            LeafLocs.influence(r)
-            m =  LeafLocs.DomCheck(r)
+        m = [None]*(len(Coords))
+        while len(m) > 1:
+            LeafLocs.influence(self)
+            m =  LeafLocs.DomCheck(self)
+            rp = LeafLocs.Repeat(self)
             if len(m) == 0:
                 break
-            rp = LeafLocs.Repeat(r)
             k=0
             for [i,j] in rp:
-                r[i].x = m[k][0]
-                r[i].y = m[k][1]
-                r[i].z = m[k][2]
+                self[i].x = m[k][0]
+                self[i].y = m[k][1]
+                self[i].z = m[k][2]
                 k += 1
                 if k>=len(m):
                     break
 
-# Finds overlapping points                
     def Repeat(self):
         repeat = [[0,0]]
-        for i in range (pts):
-            for j in [x for x in range(pts) if x != i]:
-                if r[i].reg[0][0] <= r[j].x <= r[i].reg[1][0] and r[i].reg[0][1]\
-                <= r[j].y <= r[i].reg[1][1] and r[i].reg[0][2]<= r[j].z <= r[i].reg[1][2]:
+        for i in range (len(self)):
+            for j in [x for x in range(len(self)) if x != i]:
+                if self[i].reg[0][0] <= self[j].x <= self[i].reg[1][0] and self[i].reg[0][1]\
+                <= self[j].y <= self[i].reg[1][1] and self[i].reg[0][2]<= self[j].z <= self[i].reg[1][2]:
                     test = 0
                     for [m,n] in repeat:
                         if [j,i] == [m,n]:
@@ -73,30 +85,51 @@ class LeafLocs:
         #print(repeat)
         print("Repeat = " + str(len(repeat)))
         return repeat
- 
-# Finds points in the domain not covered by sampled points        
+        
     def DomCheck(self):
         miss = []
-        for element in itertools.product(*Coords):
+        for [x,y,z] in Coords:
             flag = 1
-            for l in range(pts):
-                if r[l].reg[0][0] <= element[0] <= r[l].reg[1][0] and r[l].reg[0][1]<= element[1] <= r[l].reg[1][1] and r[l].reg[0][2]<= element[2] <= r[l].reg[1][2]:
+            for l in range(len(self)):
+                if self[l].reg[0][0] <= x <= self[l].reg[1][0] and\
+                self[l].reg[0][1]<= y <= self[l].reg[1][1] and \
+                self[l].reg[0][2]<= z <= self[l].reg[1][2]:
                     flag =1
                     break
                 else:
                     flag = 0
             if flag == 0:
-                miss.append(element)
+                miss.append([x,y,z])
         print ("Miss = " + str(len(miss)))
         return miss
 
-for i in range(pts):
-    r[i]= LeafLocs(x_init[i], y_init[i], z_init[i], 5, RoI[i])
+for i in range(p):
+    r[i]= LeafLocs(x_init[i], y_init[i], z_init[i], 2, RoI[i])
 LeafLocs.Opt(r)
 
-for i in range(pts):
-    n[i] = [r[i].x, r[i].y, r[i].z]
+sp = []
+for i in range(p):
+    fl = 0
+    for [x,y,z] in Coords:
+        if r[i].reg[0][0] <= x <= r[i].reg[1][0] and r[i].reg[0][1]<= y <= r[i].reg[1][1] and r[i].reg[0][2]<= z <= r[i].reg[1][2]:
+            fl =1
+    if fl == 1:
+        sp.append([r[i].x, r[i].y, r[i].z])
+ 
+Rn= np.ndarray(shape = (len(sp),2,3))
+n= np.array(sp)
+rn= [None]*len(sp)
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.scatter3D(n[:,0], n[:,1], n[:,2], c= n[:,2], cmap='Blues')
+for i in range(len(sp)):
+    rn[i]= LeafLocs(sp[i][0], sp[i][1], sp[i][2], 2, Rn[i])
+
+LeafLocs.influence(rn)
+rep = LeafLocs.Repeat(rn)
+
+
+#ax.scatter3D(n[:,0], n[:,1], n[:,2], c= n[:,2], cmap='Blues')
+
+if __name__ == "__main__":
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot3D(n[:,0], n[:,1], n[:,2], 'k.', alpha = 0.8)
