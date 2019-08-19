@@ -269,11 +269,10 @@ def paramerize_slice(path):
     with open(path, 'rb') as f:
         model = read_as_3d_array(f)
         surface_points = model.data
-        # size = surface_points.shape
+        size = surface_points.shape
         # pts_coords = np.transpose(dense_to_sparse(surface_points), (1, 0))
         surface_points = np.transpose(surface_points, (1, 0, 2))
-        # paramerized_surface = np.zeros(size, dtype=int)
-
+        paramerized_surface = np.zeros(size, dtype=int)
 
         for i in range(66, 455):
             dat = (get_slice_coordinate(surface_points[i, :, :]))
@@ -284,13 +283,13 @@ def paramerize_slice(path):
                     sample.append(pts)
 
             x_sample = []
-            for i in range(len(sample)):
-                x_sample.append(sample[i][1])
+            for j in range(len(sample)):
+                x_sample.append(sample[j][1])
             x_sample = np.array(x_sample)
 
             y_sample = []
-            for i in range(len(sample)):
-                y_sample.append(sample[i][0])
+            for k in range(len(sample)):
+                y_sample.append(sample[k][0])
             y_sample = np.array(y_sample)
 
             p0 = [0, 0, 0]
@@ -301,12 +300,12 @@ def paramerize_slice(path):
             y = a * x * x + b * x + c
             y = np.array(y, dtype=int)
             index = [y, x]
-            surface_points[i, :, :][index] = True
+            paramerized_surface[i, :, :][index] = True
 
-        # paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
-        new_filename = 'D:/xuexi/fields/surface/test_1_parametrized_surface.binvox'
+        paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
+        new_filename = 'D:/xuexi/fields/surface/test_1_parametrized_surface_1.binvox'
         new_file = open(new_filename, "xb")
-        new_model = VoxelModel(np.array(surface_points, dtype=int), model.dims, model.translate, model.scale,
+        new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale,
                                model.axis_order)
         write_binvox(new_model, new_file)
 
