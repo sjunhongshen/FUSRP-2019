@@ -6,9 +6,13 @@ class VascularNetwork():
     def __init__(self, fixed, leaves, r_init, f_init, p_init, edge_list):
         self.tree = nx.Graph()
         self.root_r = r_init
-        self.r_0 = 0.8
+        self.r_0 = 0.5
         self.f_0 = f_init / len(leaves)
         self.p_0 = p_init
+        self.k = 1
+        self.c = 3
+        self.mu = 3.6 * 1e-3
+        self.alpha = 1
         self.node_count = 0
         self.edge_list = edge_list
         self.fixed = range(len(fixed))
@@ -17,45 +21,50 @@ class VascularNetwork():
             self.add_branching_point(fixed_loc, True)
         for leaf_loc in leaves:
             self.add_branching_point(leaf_loc)
-        self.initialize_nodes()
-        self.k = 1
-        self.c = 3
-        self.mu = 3.6 * 1e-3
-        self.alpha = 1
-        # self.r_0 = ((r_init ** self.c) / len(leaves)) ** (1 / self.c  
+        self.initialize_nodes() 
 
-    def initialize_nodes(self):
+    def initialize_nodes(self, split=True):
         for edge in self.edge_list:
             n1, n2 = edge[0], edge[1]
             self.add_vessel(n1, n2, self.root_r)
+        if split:
+            count = 0
+            level_map = {}
+            for i in range(5):
+                for edge in list(self.tree.edges):
+                    node1, node2 = edge
+                    if np.linalg.norm(self.tree.nodes[node1]['loc'] - self.tree.nodes[node2]['loc']) <= 5: continue
+                    loc = (self.tree.nodes[node1]['loc'] + self.tree.nodes[node2]['loc']) / 2
+                    self.split(node1, loc, [node2])
+                    level_map[self.node_count - 1] = len(self.fixed) + count
+                    self.tree.nodes[self.node_count - 1]['fixed'] = True
+                    count += 1
+            print(count)
+            for i in self.fixed:
+                level_map[i] = i
+            for i in self.leaves:
+                level_map[i] = i + count
+            self.tree = nx.relabel_nodes(self.tree, level_map)
+            self.fixed = range(len(self.fixed) + count)
+            self.leaves = range(len(self.fixed), len(self.fixed) + len(self.leaves))
+        # for node in list(self.tree.nodes):
+        #     if self.tree.degree[node] == 0:
+        #         print("deg <= 1: %d" % node)
+        # return
         for node in list(self.tree.nodes):
-            if self.tree.nodes[node]['fixed'] and self.tree.degree[node] < 1:
+            # if self.tree.nodes[node]['fixed'] and self.tree.degree[node] <= 1:
+                # dis_list = np.array([np.linalg.norm(self.tree.nodes[node]['loc'] - self.tree.nodes[n]['loc']) for n in self.fixed])
+                # closest_list = np.argsort(dis_list)
+                # for n in closest_list:
+                #     if n != node and len(list(nx.all_simple_paths(self.tree, source=node, target=n))) == 0:
+                #         self.add_vessel(node, n, self.r_0)
+                #         e.append([node, n])
+                #         print(node)
+                #         break
+            if not self.tree.nodes[node]['fixed']:
                 closest = self.find_nearest_fixed(node)
                 self.add_vessel(node, closest, self.r_0)
-            else:
-                closest = self.find_nearest_fixed(node)
-                self.add_vessel(node, closest, self.r_0)
-        # end_points = []
-        # for node in list(self.tree.nodes):
-        #     if self.tree.nodes[node]['fixed'] and self.tree.degree[node] <= 1:
-        #         end_points.append(node)
-        # print(end_points)
-        # print(len(end_points))
-        # connected = []
-        # for pt in end_points:
-        #     if pt in connected: continue
-        #     dis_list = np.array([np.linalg.norm(self.tree.nodes[pt]['loc'] - self.tree.nodes[n]['loc']) for n in end_points])
-        #     for idx in np.argsort(dis_list):
-        #         if end_points[idx] != pt and len(list(nx.all_simple_paths(self.tree, source=pt, target=end_points[idx]))) == 0:
-        #             self.add_vessel(end_points[idx], pt, self.r_0)
-        #             connected.append(pt)
-        #             connected.append(end_points[idx])
-        #             break
-        # for node in list(self.tree.nodes):
-        #     if self.tree.degree[node] < 1:
-        #         print("deg = 0: %d" % node)
-        # exit()
-
+        print("connected component: %d " % nx.number_connected_components(self.tree))
 
     def add_branching_point(self, loc, fixed=False, pres=None):
         self.tree.add_node(self.node_count, loc=np.array(loc), pressure=pres, HS=None, level=None, fixed=fixed)
@@ -85,6 +94,9 @@ class VascularNetwork():
         print("split and create node %d at loc %s with radius %f" % (node2, node2_loc, r_sum))
 
     def split_radius(self, node, nodes_to_split):
+        if len(nodes_to_split) == 1:
+            n = nodes_to_split[0]
+            return self.tree[node][n]['radius'], self.tree[node][n]['flow']
         r_sum = 0
         f_sum = 0
         remaining_nodes = list(self.tree.neighbors(node))
@@ -142,6 +154,7 @@ class VascularNetwork():
             self.tree[node][n]['length'] = np.linalg.norm(self.tree.nodes[node]['loc'] - self.tree.nodes[n]['loc'])
 
     def reorder_nodes(self):
+        print("Reordering...")
         self.update_order()
         level_list = []
         node_list = list(self.tree.nodes)
@@ -160,6 +173,7 @@ class VascularNetwork():
             level_map[node_list[i]] = idx
             idx += 1
         self.tree = nx.relabel_nodes(self.tree, level_map)
+        print("Finish.")
 
     def update_radius_and_flow(self, edge, r_new):
         node1, node2 = edge
@@ -199,12 +213,26 @@ class VascularNetwork():
                 max_count = np.count_nonzero(neighbor_orders == max_order)
                 self.tree.nodes[node][mode] = max_order if max_count == 1 and mode == 'HS' else max_order + 1
             count_no_label = np.count_nonzero(np.array([self.tree.nodes[n][mode] for n in self.tree.nodes]) == 0)
+            # print(count_no_label)
 
     def update_final_order(self, mode='HS'):
         for n in self.tree.nodes:        
             self.tree.nodes[n][mode] = 1 if self.tree.degree[n] == 1 else 0
         count_no_label = self.node_count
         cur_order = 1
+        cycle_edges = []
+        try:
+            cycle_edges = list(nx.find_cycle(self.tree))
+        except:
+            pass
+        while len(cycle_edges) != 0:
+            print("cycle!")
+            self.tree.nodes[cycle_edges[0][0]][mode] = 1
+            cycle_edges = []
+            try:
+                cycle_edges = list(nx.find_cycle(self.tree))
+            except:
+                pass
         while count_no_label != 0:
             for node in self.tree.nodes:
                 if self.tree.nodes[node][mode] != 0:
@@ -216,7 +244,6 @@ class VascularNetwork():
                 max_count = np.count_nonzero(neighbor_orders == max_order)
                 self.tree.nodes[node][mode] = max_order if max_count == 1 and mode == 'HS' else max_order + 1
             count_no_label = np.count_nonzero(np.array([self.tree.nodes[n][mode] for n in self.tree.nodes]) == 0)
-
 
     def get_max_level(self):
         return np.max(np.array([self.tree.nodes[n]['level'] for n in self.tree.nodes]))

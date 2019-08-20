@@ -443,7 +443,7 @@ def denoise(img_file, write_file):
         write_binvox(new_model, new_f)
 
 def get_coords_file(img_file, fid):
-    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_2.binvox'
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_8.binvox'
     with open(img_file, 'rb') as f:
         model = read_as_3d_array(f)
         g, coords, degimg = csr.skeleton_to_csgraph(np.array(model.data), spacing=[1, 1, 1])
@@ -492,19 +492,20 @@ def get_coords_file(img_file, fid):
         # write_binvox(new_model, new_f)
 
         vol = vol1 | vol2
-        # size = vol.shape
-        # for idx in range(np.prod(size)):
-        #     idx_arr = np.unravel_index(idx, size)
-        #     if idx % 10000000 == 0:
-        #         print(idx)
-        #     if not vol[idx_arr]:
-        #         continue
-        #     voxel = Voxel(idx, size)
-        #     for i in voxel.get_neighbors(square_size=5):
-        #         if vol[i]:
-        #             vol[i] = False
+        print("%d" %np.count_nonzero(vol != 0)) 
+        size = vol.shape
+        for idx in range(np.prod(size)):
+            idx_arr = np.unravel_index(idx, size)
+            if idx % 10000000 == 0:
+                print(idx)
+            if not vol[idx_arr]:
+                continue
+            voxel = Voxel(idx, size)
+            for i in voxel.get_neighbors(square_size=5):
+                if vol[i]:
+                    vol[i] = False
         print("%d" %np.count_nonzero(vol != 0))  
-        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_main_0_image_pts.binvox', "xb")
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_main_2_image_pts.binvox', "xb")
         new_model = VoxelModel(vol, model.dims, model.translate, model.scale, model.axis_order)
         write_binvox(new_model, new_f)
         #print(np.max(degimg))
@@ -681,8 +682,8 @@ def sample_points():
         exit()
 
 def get_edges():
-    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_2.binvox'
-    pt_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_0_image_pts.binvox'
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_structure_8.binvox'
+    pt_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_2_image_pts.binvox'
     with open(img_file, 'rb') as f, open(pt_file, 'rb') as p1:
         model = read_as_3d_array(f)
         pts = read_as_3d_array(p1).data
@@ -713,7 +714,7 @@ def get_edges():
                             break
         print(edge_list)
         print(len(edge_list))
-        np.save('/Users/kimihirochin/Desktop/mesh/test_1_main_0_edge_list.npy', edge_list)
+        np.save('/Users/kimihirochin/Desktop/mesh/test_1_main_2_edge_list.npy', edge_list)
         exit()
 
 def connect_endpoints():
@@ -739,14 +740,14 @@ if __name__ == '__main__':
     # get_edges()
     # filename = 'sdf'
     # get_coords_file(filename,1)
-    sample_points()
-    connect_endpoints()
-    edge_list = np.load('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy')
-    other = [[]]
-    for e in other:
-        edge_list.append(e)
-    np.save('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy', edge_list)
-    exit()
+    # sample_points()
+    # connect_endpoints()
+    # edge_list = np.load('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy')
+    # other = [[]]
+    # for e in other:
+    #     edge_list.append(e)
+    # np.save('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy', edge_list)
+    # exit()
     get_edges()
     sample_points()
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.skull.label.nii.gz'

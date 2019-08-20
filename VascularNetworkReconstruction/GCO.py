@@ -12,10 +12,8 @@ class GCO():
     def __init__(self, fixed_locs, leaf_locs, r_init, f_init, p_init, edge_list):
         self.VN = VascularNetwork(fixed_locs, leaf_locs, r_init, f_init, p_init, edge_list)
         self.root_r = r_init
-        self.fixed_locs = fixed_locs
-        self.leaf_locs = leaf_locs
-        self.stable_nodes = range(len(self.fixed_locs))
-        self.leaves = range(len(self.fixed_locs), len(self.fixed_locs) + len(self.leaf_locs))
+        self.stable_nodes = self.VN.fixed
+        self.leaves = self.VN.leaves
         self.max_l = 3
         self.merge_threshold = 0.05
         self.prune_threshold = 8
@@ -23,20 +21,15 @@ class GCO():
         self.optimizer2 = GD_Optimizer
         self.use_C = True
         self.max_iter_1 = 10
-        self.max_iter_2 = np.log2(len(self.leaf_locs)) * 2
+        self.max_iter_2 = np.log2(len(self.leaves)) * 2
         self.cost_mode = 'PC'
-        print("max iter: %d" % self.max_iter_2)
+        print("Max iter: %d" % self.max_iter_2)
+        print("Num fixed: %d  Num leaf: %d" % (len(self.stable_nodes), len(self.leaves)))
 
     def initialize(self):
-        # locs = np.concatenate((self.leaf_locs, np.array([self.root_loc])))
-        # opt_point_loc = self.get_centroid(locs)
-        # opt_point = self.VN.add_branching_point(opt_point_loc)
-        # leaf_radii = [self.root_r] + [self.VN.r_0 for n in range(len(self.leaf_locs))]
-        # for i in range(len(self.leaf_locs) + 1):
-        #     self.VN.add_vessel(opt_point, i, leaf_radii[i])
         for node in self.stable_nodes:
             neighbors = np.array(list(self.VN.tree.neighbors(node)))
-            leaf_mask = neighbors > len(self.fixed_locs)
+            leaf_mask = neighbors > len(self.stable_nodes)
             if np.sum(leaf_mask) == 0:
                 continue
             neighbor_leaves = neighbors[leaf_mask]
@@ -49,6 +42,7 @@ class GCO():
                 self.VN.add_vessel(opt_point, i, self.VN.r_0)
                 self.VN.tree.remove_edge(node, i)
             self.VN.add_vessel(opt_point, node, (len(neighbor_leaves) * self.VN.r_0 ** 3) ** (1 / 3))
+            print("Initialize %d done" % node)
 
     def relax(self, node):
         neighbors = list(self.VN.tree.neighbors(node))
@@ -198,12 +192,10 @@ class GCO():
         # self.visualize()
 
     def GCO_opt(self):
-        self.visualize()
         cur_l = self.max_l
         count_l = 0
         cur_iter = 0
         self.initialize()
-        #self.visualize()
         while cur_iter <= self.max_iter_1:
             print("\nItearation %d" % cur_iter)
             diff_flag = True
@@ -230,10 +222,13 @@ class GCO():
                 cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
             cur_iter += 1
-        self.visualize()
+        # self.visualize()
+        print("final connected: %d" % nx.number_connected_components(self.VN.tree))
         self.save_results()
+        self.visualize()
+        self.visualize(True, 'HS')
 
-    def visualize(self):
+    def visualize(self, with_label=False, mode='label'):
         dim = len(self.VN.tree.nodes[0]['loc'])
         if dim == 2:
             locs = nx.get_node_attributes(self.VN.tree,'loc')
@@ -250,75 +245,93 @@ class GCO():
             connections = list()
             labels = list()
             text_scale = list()
+            radii = list()
             for edge in list(self.VN.tree.edges):
                 node1, node2 = edge
                 if not node1 in nodes:
                     nodes[node1] = len(coords)
                     coords.append(self.VN.tree.nodes[node1]['loc'])
                     if node1 in self.stable_nodes:
-                        text_scale.append((5, 5, 5))
+                        text_scale.append((3, 3, 3))
                     else:
                         text_scale.append((1, 1, 1))
-                    labels.append(str(node1))
+                    if mode == 'HS':
+                        labels.append(str(self.VN.tree.nodes[node1]['HS']))
+                    else:
+                        labels.append(str(node1))
                 if not node2 in nodes:
                     nodes[node2] = len(coords)
                     coords.append(self.VN.tree.nodes[node2]['loc'])
                     if node2 in self.stable_nodes:
-                        text_scale.append((5, 5, 5))
+                        text_scale.append((3, 3, 3))
                     else:
                         text_scale.append((1, 1, 1))
-                    labels.append(str(node2))
+                    if mode == 'HS':
+                        labels.append(str(self.VN.tree.nodes[node2]['HS']))
+                    else:
+                        labels.append(str(node2))
                 connections.append([nodes[node1], nodes[node2]])
+                radii.append(self.VN.tree[node1][node2]['radius'])
             coords = np.array(coords)
             mlab.figure(1, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0))
             mlab.clf()
             pts = mlab.points3d(coords[:, 0], coords[:, 1], coords[:, 2], scale_factor=0.5, scale_mode='none', colormap='Blues', resolution=60)   
             mlab.axes() 
-            mlab.points3d(coords[0][0], coords[0][1], coords[0][2], resolution=60)
-            pts.mlab_source.dataset.lines = connections
-            tube = mlab.pipeline.tube(pts, tube_radius=0.1)
-            mlab.pipeline.surface(tube, color=(0, 0, 0))
-            # for i in range(len(coords)):
-            #     mlab.text3d(coords[i][0], coords[i][1], coords[i][2], labels[i], scale=text_scale[i])      
+        
+            # pts.mlab_source.dataset.lines = connections      
+            # tube = mlab.pipeline.tube(pts, tube_radius=0.1)
+            # mlab.pipeline.surface(tube, color=(0, 0, 0))
+
+            i = 0
+            for n in connections:
+                n1, n2 = n[0], n[1]
+                r = radii[i]
+                mlab.plot3d([coords[n1][0], coords[n2][0]], [coords[n1][1], coords[n2][1]], [coords[n1][2], coords[n2][2]], tube_radius = 0.5 * r)
+                i += 1
+
+            if not with_label:
+                mlab.show()
+                return
+
+            for i in range(len(coords)):
+                mlab.text3d(coords[i][0], coords[i][1], coords[i][2], labels[i], scale=text_scale[i])      
             mlab.show()
 
-    def save_results(self, connected=True):
-        if connected:
-            self.VN.update_final_order()
-        else:
-            self.VN.update_order('HS')
+    def save_results(self):
         coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_coords.npy'
         connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_connections.npy'
         radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_radii.npy'
-        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_order.npy'
-        n_order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_neighbor_order.npy'
+        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_HS_order.npy'
+        level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_level_order.npy'
         nodes = dict()
         coords = list()
         connections = list()
         radii = list()
-        order = list()
-        n_order = list()
         for edge in list(self.VN.tree.edges):
             node1, node2 = edge
             if not node1 in nodes:
                 nodes[node1] = len(coords)
                 coords.append(self.VN.tree.nodes[node1]['loc'])
-                order.append(self.VN.tree.nodes[node1]['HS'])
-                n_order.append([self.VN.tree.nodes[n]['HS'] for n in self.VN.tree.neighbors(node1)])
             if not node2 in nodes:
                 nodes[node2] = len(coords)
                 coords.append(self.VN.tree.nodes[node2]['loc'])
-                order.append(self.VN.tree.nodes[node2]['HS'])
-                n_order.append([self.VN.tree.nodes[n]['HS'] for n in self.VN.tree.neighbors(node2)])
             connections.append([nodes[node1], nodes[node2]])
             radii.append(self.VN.tree[node1][node2]['radius'])
         np.save(coord_file, coords)
         np.save(connection_file, connections)
         np.save(radius_file, radii)
-        np.save(order_file, order)
-        np.save(n_order_file, n_order)
-        
+        print("Save coords, edges and radius.")
 
+        self.VN.update_final_order('HS')
+        self.VN.update_final_order('level')
+        order = np.zeros((len(coords)))
+        l_order = np.zeros((len(coords)))
+        for i in range(len(coords)):
+            order[nodes[i]]= self.VN.tree.nodes[i]['HS']
+            l_order[nodes[i]]= self.VN.tree.nodes[i]['level']
+        np.save(order_file, order)
+        np.save(level_file, l_order)   
+        print("Save orders.")     
 
 def generate_random_points():
     dim = 3
@@ -350,7 +363,7 @@ def generate_random_points():
 
     return coords
 
-def read_coords_from_binvox(fixed_points_file, random_points_file, edge_file, f_all=True, half=False):
+def read_coords_from_binvox(fixed_points_file, random_points_file, edge_file, offset=0, f_all=True, half=False):
      with open(fixed_points_file, 'rb') as f, open(random_points_file, 'rb') as r:
         fixed = read_as_3d_array(f)
         random = read_as_3d_array(r)
@@ -367,8 +380,8 @@ def read_coords_from_binvox(fixed_points_file, random_points_file, edge_file, f_
                     r_idx.append(i)
         elif not f_all:
             f_idx = np.random.choice(f_coords.shape[0], 900, replace=False)
-            r_idx = np.random.choice(r_coords.shape[0], 900, replace=False)
-        edge_list = np.load(edge_file)
+            r_idx = np.random.choice(r_coords.shape[0], 4000, replace=False)
+        edge_list = np.load(edge_file) + offset
         if f_all:
             return f_coords, r_coords, edge_list
         new_edge_list = []
@@ -381,12 +394,15 @@ if __name__ == '__main__':
     fixed_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_image_pts.binvox'
     random_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface_0.99.binvox'
     edge_file = '/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy'
-    # fixed_points_file = '/home/jhshen/pointfiles/test_1_main_0_image_pts.binvox'
-    # # random_points_file = '/home/jhshen/pointfiles/test_1_random_pts.binvox'
-    # edge_file = '/home/jhshen/pointfiles/test_1_main_0_edge_list.npy'
-    fixed_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_0_image_pts.binvox'
-    edge_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_0_edge_list.npy'
+
+    fixed_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_1_image_pts.binvox'
+    edge_file = '/Users/kimihirochin/Desktop/mesh/test_1_main_1_edge_list.npy'
+    fixed_points_file_2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_2_image_pts.binvox'
+    edge_file_2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_2_edge_list.npy'
     random_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_uniform.binvox'
     f_coords, r_coords, new_edge_list = read_coords_from_binvox(fixed_points_file, random_points_file, edge_file)
+    f_coords_2, _, new_edge_list_2 = read_coords_from_binvox(fixed_points_file_2, random_points_file, edge_file_2, offset=len(f_coords))
+    f_coords = np.concatenate((f_coords, f_coords_2))
+    new_edge_list = np.concatenate((new_edge_list, new_edge_list_2))
     g = GCO(f_coords, r_coords, 2.5, 10, 2, new_edge_list)
     g.GCO_opt()

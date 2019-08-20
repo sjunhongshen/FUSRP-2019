@@ -271,6 +271,32 @@ def paramerize_slice(path):
         surface_points = model.data
         size = surface_points.shape
         # pts_coords = np.transpose(dense_to_sparse(surface_points), (1, 0))
+
+        dat = (get_slice_coordinate(surface_points[256, :, :]))
+
+        sample = []
+        for pts in (np.transpose(dat, (1, 0))):
+            if 180 < pts[1] < 215:
+                sample.append(pts)
+            # x = np.array(np.transpose(sample, (1, 0))[1])
+            # y = np.array(np.transpose(sample, (1, 0))[0])
+
+        x_sample = []
+        y_sample = []
+        for j in range(len(sample)):
+            x_sample.append(sample[j][0])
+            y_sample.append(sample[j][1])
+        x_sample = np.array(x_sample)
+        y_sample = np.array(y_sample)
+
+        p0 = [0, 0, 0]
+        Para = leastsq(error, p0, args=(x_sample, y_sample))
+        a, b, c = Para[0]
+        x = np.linspace(min(x_sample), max(x_sample), (max(x_sample) - min(x_sample) + 1))
+        mid_x = np.array(x, dtype=int)
+        y = [a * xi * xi + b * xi + c if a * xi * xi + b * xi + c <= 511 else 511 for xi in x]
+        mid_y = np.array(y, dtype=int)
+
         surface_points = np.transpose(surface_points, (1, 0, 2))
         paramerized_surface = np.zeros(size, dtype=int)
 
@@ -285,15 +311,14 @@ def paramerize_slice(path):
             # y = np.array(np.transpose(sample, (1, 0))[0])
 
             x_sample = []
+            y_sample = []
             for j in range(len(sample)):
                 x_sample.append(sample[j][0])
-            x_sample.append(256)
+                y_sample.append(sample[j][1])
+            if i in mid_x:
+                x_sample.append(256)
+                y_sample.append(mid_y[np.where(mid_x == i)])
             x_sample = np.array(x_sample)
-
-            y_sample = []
-            for k in range(len(sample)):
-                y_sample.append(sample[k][1])
-            y_sample.append(256)
             y_sample = np.array(y_sample)
 
             if len(x_sample) < 3: continue
@@ -309,7 +334,7 @@ def paramerize_slice(path):
 
         paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
         print(np.count_nonzero(paramerized_surface != 0))
-        new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_p_surface_1.binvox'
+        new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_p_surface_6.binvox'
         new_file = open(new_filename, "xb")
         new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale,
                                model.axis_order)
