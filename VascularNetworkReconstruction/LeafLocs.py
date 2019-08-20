@@ -1,26 +1,29 @@
 from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 import binvox_rw
 
-
-p = 70
-dim = 10
+p = 400
+dim = 512
+sampling_ratio = 4500
 with open('test_1_hemi.binvox', 'rb') as f:
     model = binvox_rw.read_as_3d_array(f)
 
-Coords = np.transpose(np.nonzero(model.data))
-
-lc = len(Coords)
+Coords=[]
+pts = np.transpose(np.nonzero(model.data))
+for i in range(len(pts)):
+    if ((i%sampling_ratio)==0):
+        Coords.append(pts[i])
+        
+Coords = np.array(Coords)
 RoI = np.ndarray(shape = (p,2,3))
 r = [None]*p
-num= int (lc/p)
+n= np.zeros(shape = (p,3))
 x_init = np.random.randint(dim, size=p)
 y_init = np.random.randint(dim, size=p)
-z_init = np.random.randint(dim, size=p)
-
-    
-        
+z_init = np.random.randint(300, size=p)    
+         
 class LeafLocs:
     def __init__(self, x, y, z, inf, reg):
         self.x = x
@@ -40,20 +43,22 @@ class LeafLocs:
                     
                     
     def Opt(self):
-        m = [None]*(len(Coords))
-        while len(m) > 1:
+        miss = [None]*(len(Coords))
+        while len(miss) > 1:
             LeafLocs.influence(self)
-            m =  LeafLocs.DomCheck(self)
+            miss =  LeafLocs.DomCheck(self)
             rp = LeafLocs.Repeat(self)
-            if len(m) == 0:
+            move = LeafLocs.MovingP(self)
+            mp = np.array(move + [i for i in rp if i not in move])
+            if len(miss) == 0:
                 break
             k=0
-            for [i,j] in rp:
-                self[i].x = m[k][0]
-                self[i].y = m[k][1]
-                self[i].z = m[k][2]
+            for [i,j] in mp:
+                self[i].x = miss[k][0]
+                self[i].y = miss[k][1]
+                self[i].z = miss[k][2]
                 k += 1
-                if k>=len(m):
+                if k>=len(miss):
                     break
 
     def Repeat(self):
@@ -68,7 +73,6 @@ class LeafLocs:
                             test =1
                     if test ==0:
                         repeat.append([i,j])
-        #print(repeat)
         print("Repeat = " + str(len(repeat)))
         return repeat
         
@@ -88,29 +92,24 @@ class LeafLocs:
                 miss.append([x,y,z])
         print ("Miss = " + str(len(miss)))
         return miss
+    
+    def MovingP(self):
+        mp = []
+        for i in range(p):
+            fl = 0
+            for [x,y,z] in Coords:
+                if r[i].reg[0][0] <= x <= r[i].reg[1][0] and r[i].reg[0][1]<= y <= r[i].reg[1][1] and r[i].reg[0][2]<= z <= r[i].reg[1][2]:
+                    fl =1
+            if fl == 0:
+                mp.append([i,0])
+        return mp
 
 for i in range(p):
     r[i]= LeafLocs(x_init[i], y_init[i], z_init[i], 2, RoI[i])
 LeafLocs.Opt(r)
 
-sp = []
-for i in range(p):
-    fl = 0
-    for [x,y,z] in Coords:
-        if r[i].reg[0][0] <= x <= r[i].reg[1][0] and r[i].reg[0][1]<= y <= r[i].reg[1][1] and r[i].reg[0][2]<= z <= r[i].reg[1][2]:
-            fl =1
-    if fl == 1:
-        sp.append([r[i].x, r[i].y, r[i].z])
- 
-Rn= np.ndarray(shape = (len(sp),2,3))
-n= np.array(sp)
-rn= [None]*len(sp)
-
-for i in range(len(sp)):
-    rn[i]= LeafLocs(sp[i][0], sp[i][1], sp[i][2], 2, Rn[i])
-
-LeafLocs.influence(rn)
-rep = LeafLocs.Repeat(rn)
+for i in range (p):
+    n[i]= [r[i].x, r[i].y, r[i].z]
 
 
 #ax.scatter3D(n[:,0], n[:,1], n[:,2], c= n[:,2], cmap='Blues')
