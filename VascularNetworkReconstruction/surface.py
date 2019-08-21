@@ -317,7 +317,7 @@ def paramerize_slice(path):
                 y_sample.append(sample[j][1])
             if i in mid_x:
                 x_sample.append(256)
-                y_sample.append(mid_y[np.where(mid_x == i)])
+                y_sample.append(mid_y[np.where(mid_x == i)][0])
             x_sample = np.array(x_sample)
             y_sample = np.array(y_sample)
 
