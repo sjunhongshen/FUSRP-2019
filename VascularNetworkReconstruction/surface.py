@@ -265,8 +265,8 @@ def error(params, x, y):
     return func(params, x) - y
 
 
-def paramerize_slice(path):
-    with open(path, 'rb') as f:
+def paramerize_slice(path_1,path_2):
+    with open(path_1, 'rb') as f:
         model = read_as_3d_array(f)
         surface_points = model.data
         size = surface_points.shape
@@ -335,6 +335,11 @@ def paramerize_slice(path):
 
         paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
 
+    with open(path_2, 'rb') as p:
+        model = read_as_3d_array(p)
+        volume_points = model.data
+        size = surface_points.shape
+
         for i in range(19, 503):
 
             datnew = (get_slice_coordinate(paramerized_surface[i, :, :]))
@@ -345,8 +350,8 @@ def paramerize_slice(path):
             for m in range(a, b + 1):
                 yaxis = datnew[1][np.where(datnew[0] == m)]
                 if yaxis != []:
-                    for n in range(min(yaxis), max(yaxis)):
-                        paramerized_surface[i, :, :][m, n] = True
+                    for n in range(214, max(yaxis)):
+                        volume_points[i, :, :][m, n] = True
 
         # datnew = (get_slice_coordinate(paramerized_surface[256, :, :]))
         # # if datnew[0] != []:
@@ -358,15 +363,16 @@ def paramerize_slice(path):
         #     for n in range(min(yaxis), max(yaxis)):
         #         paramerized_surface[256, :, :][m, n] = True
 
-        paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
+        # volume_points = np.transpose(volume_points, (1, 0, 2))
         print(np.count_nonzero(paramerized_surface != 0))
-        new_filename = 'D:/xuexi/fields/stl/test_1_p_volume_test.binvox'
+        new_filename = 'D:/xuexi/fields/stl/test_1_p_volume_2.binvox'
         new_file = open(new_filename, "xb")
-        new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale,
+        new_model = VoxelModel(np.array(volume_points, dtype=int), model.dims, model.translate, model.scale,
                                model.axis_order)
         write_binvox(new_model, new_file)
 
 
 if __name__ == '__main__':
-    path = 'D:/xuexi/fields/surface/test_1_hemi_surface.binvox'
-    paramerize_slice(path)
+    path_1 = 'D:/xuexi/fields/surface/test_1_hemi_surface.binvox'
+    path_2 = 'D:/xuexi/fields/stl/test_1_hemi.binvox'
+    paramerize_slice(path_1,path_2)
