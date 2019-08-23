@@ -1,9 +1,9 @@
 import numpy as np
 from voxel_tool import Voxel
-from matplotlib import pyplot as plt
 import struct
 from scipy.optimize import leastsq
-
+import warnings
+warnings.filterwarnings("ignore")
 
 ############################################################################
 #### Helper Functions
@@ -265,8 +265,8 @@ def error(params, x, y):
     return func(params, x) - y
 
 
-def paramerize_slice(path):
-    with open(path, 'rb') as f:
+def paramerize_slice(path_1,path_2):
+    with open(path_1, 'rb') as f:
         model = read_as_3d_array(f)
         surface_points = model.data
         size = surface_points.shape
@@ -298,9 +298,10 @@ def paramerize_slice(path):
         mid_y = np.array(y, dtype=int)
 
         surface_points = np.transpose(surface_points, (1, 0, 2))
-        paramerized_surface = np.zeros(size, dtype=int)
+        # paramerized_surface = np.zeros(size, dtype=int)
+        paramerized_surface = surface_points
 
-        for i in range(50, 455):
+        for i in range(1, 512):
             dat = (get_slice_coordinate(surface_points[i, :, :]))
 
             sample = []
@@ -317,7 +318,7 @@ def paramerize_slice(path):
                 y_sample.append(sample[j][1])
             if i in mid_x:
                 x_sample.append(256)
-                y_sample.append(mid_y[np.where(mid_x == i)])
+                y_sample.append(mid_y[np.where(mid_x == i)][0])
             x_sample = np.array(x_sample)
             y_sample = np.array(y_sample)
 
@@ -338,14 +339,45 @@ def paramerize_slice(path):
             paramerized_surface[i, :, :][index] = True
 
         paramerized_surface = np.transpose(paramerized_surface, (1, 0, 2))
+
+    with open(path_2, 'rb') as p:
+        model = read_as_3d_array(p)
+        volume_points = model.data
+        size = surface_points.shape
+
+        for i in range(19, 503):
+
+            datnew = (get_slice_coordinate(paramerized_surface[i, :, :]))
+            if datnew[0] != []:
+                a = min(datnew[0])
+                b = max(datnew[0])
+
+            for m in range(a, b + 1):
+                yaxis = datnew[1][np.where(datnew[0] == m)]
+                if yaxis != []:
+                    for n in range(214, max(yaxis)):
+                        volume_points[i, :, :][m, n] = True
+
+        # datnew = (get_slice_coordinate(paramerized_surface[256, :, :]))
+        # # if datnew[0] != []:
+        # a = min(datnew[0])
+        # b = max(datnew[0])
+        #
+        # for m in range(a, b + 1):
+        #     yaxis = datnew[1][np.where(datnew[0] == m)]
+        #     for n in range(min(yaxis), max(yaxis)):
+        #         paramerized_surface[256, :, :][m, n] = True
+
+        # volume_points = np.transpose(volume_points, (1, 0, 2))
         print(np.count_nonzero(paramerized_surface != 0))
-        new_filename = '/Users/kimihirochin/Desktop/mesh/test_1_p_surface_8.binvox'
+        new_filename = 'D:/xuexi/fields/stl/test_1_p_volume_2.binvox'
         new_file = open(new_filename, "xb")
-        new_model = VoxelModel(np.array(paramerized_surface, dtype=int), model.dims, model.translate, model.scale,
+        new_model = VoxelModel(np.array(volume_points, dtype=int), model.dims, model.translate, model.scale,
                                model.axis_order)
         write_binvox(new_model, new_file)
 
 
 if __name__ == '__main__':
-    path = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_surface.binvox'
-    paramerize_slice(path)
+    path_1 = 'D:/xuexi/fields/surface/test_1_hemi_surface.binvox'
+    path_2 = 'D:/xuexi/fields/stl/test_1_hemi.binvox'
+    paramerize_slice(path_1,path_2)
