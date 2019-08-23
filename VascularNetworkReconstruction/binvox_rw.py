@@ -555,7 +555,7 @@ def sample_points():
     # aff = nibabel.load(path1).affine
     # header = nibabel.load(path1).header
     # size = vol.shape
-    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_uniform.binvox'
+    img_file = '/Users/kimihirochin/Desktop/mesh/test_1_p_volume_2_uniform.binvox'
     # out = np.zeros(size)
     # for idx in range(np.prod(size)):
     #     idx_arr = np.unravel_index(idx, size)
@@ -571,24 +571,47 @@ def sample_points():
         vol = model.data
         size = vol.shape
         print(np.count_nonzero(vol != 0))
-        exit()
         # model2 = read_as_3d_array(r)
         # vol2 = model2.data
         # size2 = vol2.shape
         # print(np.count_nonzero(vol2 != 0))
         # exit()
-        out = np.zeros(size)
+        # out = np.zeros(size)
 
-        for idx in range(0, np.prod(size), 15):
+        for idx in range(np.prod(size)):
             if idx % 100000 == 0:
                 print(idx)
             idx_arr = np.unravel_index(idx, size)
             if vol[idx_arr]:
                 voxel = Voxel(idx, size)
-                for i in voxel.get_neighbors(square_size=15):
+                for i in voxel.get_neighbors(square_size = 3):
                     vol[i] = False
-        print(np.count_nonzero(out != 0))
-        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_hemi_uniform.binvox', "xb")
+
+        # for idx in range(0, np.prod(size), 14):
+        #     if idx % 100000 == 0:
+        #         print(idx)
+        #     idx_arr = np.unravel_index(idx, size)
+        #     if vol[idx_arr]:
+        #         voxel = Voxel(idx, size)
+        #         rd = np.random.randint(0, 7, 1)[0]
+        #         rd2 = np.random.randint(0, 7, 1)[0]
+        #         rd3 = np.random.randint(0, 7, 1)[0]
+        #         rd4 = np.random.randint(0, 7, 1)[0]
+        #         flag = False
+        #         new_idx = tuple(idx_arr + np.array([rd2, rd3, rd4]))
+        #         x, y, z = new_idx
+        #         if x >= 512 or y >= 512 or z >= 512:
+        #             new_idx = idx_arr
+        #         if vol[new_idx]:
+        #             flag = True
+        #         for i in voxel.get_neighbors(square_size=7 + rd):
+        #             vol[i] = False
+        #         if flag:
+        #             vol[idx_arr] = False
+        #             vol[new_idx] = True                 
+
+        print(np.count_nonzero(vol != 0))
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_p_volume_2_uniform_1.binvox', "xb")
         new_model = VoxelModel(np.array(vol, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
         write_binvox(new_model, new_f)
         exit()
@@ -748,7 +771,7 @@ if __name__ == '__main__':
     #     edge_list.append(e)
     # np.save('/Users/kimihirochin/Desktop/mesh/test_1_image_edge_list.npy', edge_list)
     # exit()
-    get_edges()
+    # get_edges()
     sample_points()
     filename = '/Users/kimihirochin/Desktop/mesh/IXI002-Guys-0828-ANGIOSENS_-s256_-0701-00007-000001-01.skull.label.nii.gz'
     # get_main_struct(filename,1)

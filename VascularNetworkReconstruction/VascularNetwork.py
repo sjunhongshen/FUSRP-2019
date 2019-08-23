@@ -47,6 +47,10 @@ class VascularNetwork():
             self.tree = nx.relabel_nodes(self.tree, level_map)
             self.fixed = range(len(self.fixed) + count)
             self.leaves = range(len(self.fixed), len(self.fixed) + len(self.leaves))
+            self.edge_list = []
+            for edge in list(self.tree.edges):
+                node1, node2 = edge
+                self.edge_list.append([node1, node2])
         # for node in list(self.tree.nodes):
         #     if self.tree.degree[node] == 0:
         #         print("deg <= 1: %d" % node)
@@ -64,7 +68,6 @@ class VascularNetwork():
             if not self.tree.nodes[node]['fixed']:
                 closest = self.find_nearest_fixed(node)
                 self.add_vessel(node, closest, self.r_0)
-        print("connected component: %d " % nx.number_connected_components(self.tree))
 
     def add_branching_point(self, loc, fixed=False, pres=None):
         self.tree.add_node(self.node_count, loc=np.array(loc), pressure=pres, HS=None, level=None, fixed=fixed)
@@ -121,7 +124,11 @@ class VascularNetwork():
                 continue
             # print("node %d level: %d" % (node1, self.tree.nodes[node1][mode]))
             # print("node %d level: %d" % (node2, self.tree.nodes[node2][mode]))
-            if min(self.tree.nodes[node1][mode], self.tree.nodes[node2][mode]) <= l:
+            if self.tree.nodes[node1][mode] == -1 or self.tree.nodes[node2][mode] == -1:
+                order = max(self.tree.nodes[node1][mode], self.tree.nodes[node2][mode])
+            else:
+                order = min(self.tree.nodes[node1][mode], self.tree.nodes[node2][mode])
+            if order <= l:
                 self.tree.remove_edge(node1, node2)
                 print("prune edge (%d, %d)" % (node1, node2))
         for node in list(self.tree.nodes):
@@ -202,7 +209,7 @@ class VascularNetwork():
         cur_order = 1
         while count_no_label != 0:
             for node in self.tree.nodes:
-                if self.tree.nodes[node][mode] != 0:
+                if self.tree.nodes[node][mode] != 0 or len(list(self.tree.neighbors(node))) == 0:
                     continue
                 neighbor_orders = np.array([self.tree.nodes[n][mode] for n in self.tree.neighbors(node)])
                 if -1 in neighbor_orders and np.count_nonzero(neighbor_orders == 0) >= 1:
@@ -235,7 +242,7 @@ class VascularNetwork():
                 pass
         while count_no_label != 0:
             for node in self.tree.nodes:
-                if self.tree.nodes[node][mode] != 0:
+                if self.tree.nodes[node][mode] != 0 or len(list(self.tree.neighbors(node))) == 0:
                     continue
                 neighbor_orders = np.array([self.tree.nodes[n][mode] for n in self.tree.neighbors(node)])
                 if np.count_nonzero(neighbor_orders == 0) > 1:

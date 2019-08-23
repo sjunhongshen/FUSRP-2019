@@ -14,13 +14,13 @@ class GCO():
         self.root_r = r_init
         self.stable_nodes = self.VN.fixed
         self.leaves = self.VN.leaves
-        self.max_l = 3
-        self.merge_threshold = 0.05
+        self.max_l = 2
+        self.merge_threshold = 0.1
         self.prune_threshold = 8
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
         self.use_C = True
-        self.max_iter_1 = 10
+        self.max_iter_1 = 12
         self.max_iter_2 = np.log2(len(self.leaves)) * 2
         self.cost_mode = 'PC'
         print("Max iter: %d" % self.max_iter_2)
@@ -42,7 +42,6 @@ class GCO():
                 self.VN.add_vessel(opt_point, i, self.VN.r_0)
                 self.VN.tree.remove_edge(node, i)
             self.VN.add_vessel(opt_point, node, (len(neighbor_leaves) * self.VN.r_0 ** 3) ** (1 / 3))
-            print("Initialize %d done" % node)
 
     def relax(self, node):
         neighbors = list(self.VN.tree.neighbors(node))
@@ -189,7 +188,7 @@ class GCO():
             if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.split(n)
-        # self.visualize()
+        print("connected component: %d " % nx.number_connected_components(self.VN.tree))
 
     def GCO_opt(self):
         cur_l = self.max_l
@@ -213,17 +212,18 @@ class GCO():
             cur_level = self.VN.get_max_level()
             print("cur_level: %d" % cur_level)
             if cur_level >= self.prune_threshold and cur_iter < self.max_iter_1:
-                self.VN.prune(cur_l)
-                # self.visualize()
+                self.VN.prune(cur_l, 'HS')
+                # self.visualize(True, 'level')
                 count_l += 1
                 self.VN.reconnect()
-                # self.visualize()
-            if count_l == 3:
+                print("connected component: %d" % nx.number_connected_components(self.VN.tree))
+                # self.visualize(True, 'level')
+            if count_l == 5:
                 cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
             cur_iter += 1
         # self.visualize()
-        print("final connected: %d" % nx.number_connected_components(self.VN.tree))
+        print("final connected component: %d" % nx.number_connected_components(self.VN.tree))
         self.save_results()
         self.visualize()
         self.visualize(True, 'HS')
@@ -255,8 +255,8 @@ class GCO():
                         text_scale.append((3, 3, 3))
                     else:
                         text_scale.append((1, 1, 1))
-                    if mode == 'HS':
-                        labels.append(str(self.VN.tree.nodes[node1]['HS']))
+                    if mode == 'HS' or mode == 'level':
+                        labels.append(str(self.VN.tree.nodes[node1][mode]))
                     else:
                         labels.append(str(node1))
                 if not node2 in nodes:
@@ -266,8 +266,8 @@ class GCO():
                         text_scale.append((3, 3, 3))
                     else:
                         text_scale.append((1, 1, 1))
-                    if mode == 'HS':
-                        labels.append(str(self.VN.tree.nodes[node2]['HS']))
+                    if mode == 'HS' or mode == 'level':
+                        labels.append(str(self.VN.tree.nodes[node2][mode]))
                     else:
                         labels.append(str(node2))
                 connections.append([nodes[node1], nodes[node2]])
@@ -298,11 +298,11 @@ class GCO():
             mlab.show()
 
     def save_results(self):
-        coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_coords.npy'
-        connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_connections.npy'
-        radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_radii.npy'
-        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_HS_order.npy'
-        level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_2_level_order.npy'
+        coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_coords.npy'
+        connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_connections.npy'
+        radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_radii.npy'
+        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_HS_order.npy'
+        level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_level_order.npy'
         nodes = dict()
         coords = list()
         connections = list()
@@ -380,7 +380,7 @@ def read_coords_from_binvox(fixed_points_file, random_points_file, edge_file, of
                     r_idx.append(i)
         elif not f_all:
             f_idx = np.random.choice(f_coords.shape[0], 900, replace=False)
-            r_idx = np.random.choice(r_coords.shape[0], 4000, replace=False)
+            r_idx = np.random.choice(r_coords.shape[0], 300, replace=False)
         edge_list = np.load(edge_file) + offset
         if f_all:
             return f_coords, r_coords, edge_list
@@ -400,6 +400,7 @@ if __name__ == '__main__':
     fixed_points_file_2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_2_image_pts.binvox'
     edge_file_2 = '/Users/kimihirochin/Desktop/mesh/test_1_main_2_edge_list.npy'
     random_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_hemi_uniform.binvox'
+    random_points_file = '/Users/kimihirochin/Desktop/mesh/test_1_p_volume_2_uniform_1.binvox'
     f_coords, r_coords, new_edge_list = read_coords_from_binvox(fixed_points_file, random_points_file, edge_file)
     f_coords_2, _, new_edge_list_2 = read_coords_from_binvox(fixed_points_file_2, random_points_file, edge_file_2, offset=len(f_coords))
     f_coords = np.concatenate((f_coords, f_coords_2))
