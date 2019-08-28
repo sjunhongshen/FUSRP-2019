@@ -5,7 +5,7 @@ import pandas as pd
 import binvox_rw
          
 class leafLocOptimizer:
-    def __init__(self, region, coords, inf, p):
+    def __init__(self, region, coords, inf, p, sample_num):
         self.region = np.array(region)
         self.dim = min(self.region.shape)
         self.coords = np.array(coords)
@@ -13,8 +13,9 @@ class leafLocOptimizer:
         self.reg = np.zeros((p, 2, 3), dtype=int)
         self.p = p
         self.max_iter = 100
-        self.min_miss = np.count_nonzero(self.region == 0)
+        self.min_miss = np.count_nonzero(self.region)
         self.min_miss_coords = None
+        self.sample_num = sample_num
     
     def influence(self):
         for i in range(self.p):
@@ -43,6 +44,8 @@ class leafLocOptimizer:
                     self.coords[outside_pts[i]] = miss[i]
                 for i in range(miss_num, len(outside_pts)):
                     self.coords[outside_pts[i]] = None
+                self.min_miss = 0
+                self.min_miss_coords = self.coords.copy()
                 return
 
             dic = self.repeatCheck()
@@ -63,22 +66,29 @@ class leafLocOptimizer:
                     del miss_idx[k]
                     moved.append(p)
                 print("\tmove num: %d" % len(moved))
-                new_x = np.random.randint(self.dim, size=1)
-                new_y = np.random.randint(self.dim, size=1)
-                new_z = np.random.randint(self.dim, size=1)
-                self.coords = np.concatenate((self.coords, np.reshape([new_x, new_y, new_z], (1, 3))))
-                self.inf = np.concatenate((self.inf, np.reshape(self.inf[0], (1, 1))))
-                self.reg = np.concatenate((self.reg, np.reshape(self.reg[0], (1, 2, 3))))
-                self.p += 1
+                sample_coords = []
+                for i in range(self.sample_num):
+                    sample_coords.append(np.random.randint(self.dim, size=3))
+                self.coords = np.concatenate((self.coords, np.reshape(sample_coords, (self.sample_num, 3))))
+                self.inf = np.concatenate((self.inf, np.reshape([self.inf[0] for i in range(self.sample_num)], (self.sample_num, 1))))
+                self.reg = np.concatenate((self.reg, np.reshape([self.reg[0] for i in range(self.sample_num)], (self.sample_num, 2, 3))))
+                self.p += self.sample_num
 
             cur_iter += 1
+        self.remove_outside()
 
     def update_inf(self):
         threshold = 180
         upper_brain = 20
         lower_brain = 18
         for i in range(self.p):
-            inf[i] = upper_brain if coords[i][3] >= threshold else lower_brain
+            inf[i] = upper_brain if coords[i][2] >= threshold else lower_brain
+
+    def remove_outside(self):
+        for i in range(len(self.min_miss_coords)):
+            if i >= len(self.min_miss_coords): break
+            if self.min_miss_coords[i] is None or not self.region[tuple(self.min_miss_coords[i])]:
+                self.min_miss_coords = np.delete(self.min_miss_coords, i, axis=0)
 
     def get_overlap(self, i, j):
         count = 0
@@ -103,6 +113,7 @@ class leafLocOptimizer:
             overlap = int(overlap / (self.p - 1))
             if overlap > 0.25 * (2 * self.inf[i] + 1) ** 3:
                 repeat[i + 1] = overlap
+            print("\t\toverlap check for %d: %d" % (i, overlap))
         return repeat
         
     def domCheck(self):
@@ -123,47 +134,64 @@ class leafLocOptimizer:
 
 
 if __name__ == "__main__":
+    # np.random.seed(0)
+    # p = 10
+    # dim = 50
+    # inf = 10
+    # r = 15
+
+    # x_init = np.random.randint(dim, size=p)
+    # y_init = np.random.randint(dim, size=p)
+    # z_init = np.random.randint(dim, size=p)
+    # coords = np.transpose(np.array([x_init, y_init, z_init]))
+
+    # model = np.zeros((dim, dim, dim), dtype=int)
+    # size = model.shape
+
+    # for idx in range(np.prod(size)):
+    #     idx_arr = np.unravel_index(idx, size)
+    #     x, y, z = idx_arr
+    #     x -= dim / 2
+    #     y -= dim / 2
+    #     z -= dim / 2
+    #     if x ** 2 + y ** 2 + z ** 2 <= r ** 2:
+    #         model[idx_arr] = 1
+    # print(np.count_nonzero(model))
+    # optimizer = leafLocOptimizer(model, coords, inf, p)
+    # optimizer.optimize()
+    # final_coords = optimizer.min_miss_coords
+    # print(final_coords)
+    # print(len(final_coords))
+    # exit()
+
     np.random.seed(0)
-    p = 10
-    dim = 50
-    inf = 10
+    p = 2000
+    dim = 512
+    inf = 20
     r = 15
-
-    x_init = np.random.randint(dim, size=p)
-    y_init = np.random.randint(dim, size=p)
-    z_init = np.random.randint(dim, size=p)
-    coords = np.transpose(np.array([x_init, y_init, z_init]))
-
-    model = np.zeros((dim, dim, dim), dtype=int)
-    size = model.shape
-
-    for idx in range(np.prod(size)):
-        idx_arr = np.unravel_index(idx, size)
-        x, y, z = idx_arr
-        x -= dim / 2
-        y -= dim / 2
-        z -= dim / 2
-        if x ** 2 + y ** 2 + z ** 2 <= r ** 2:
-            model[idx_arr] = 1
-    print(np.count_nonzero(model))
-    optimizer = leafLocOptimizer(model, coords, inf, p)
-    optimizer.optimize()
-    exit()
-
-    np.random.seed(0)
-    p = 10
-    dim = 50
-    inf = 10
-    r = 15
+    sample = 10
     with open('/Users/kimihirochin/Desktop/mesh/test_1_hemi.binvox', 'rb') as f:
         model = binvox_rw.read_as_3d_array(f)
-        dim = 512
+        size = model.data.shape
+
         x_init = np.random.randint(dim, size=p)
         y_init = np.random.randint(dim, size=p)
         z_init = np.random.randint(dim, size=p) 
 
-        optimizer = leafLocOptimizer(model, coords, inf, p)
+        coords = np.transpose(np.array([x_init, y_init, z_init]))
+
+        optimizer = leafLocOptimizer(model.data, coords, inf, p, sample)
         optimizer.optimize()
+        final_coords = optimizer.min_miss_coords
+
+        out = np.zeros(size, dtype=int)
+        for i in range(len(final_coords)):
+            out[tuple(final_coords[i])] = 1
+
+        new_f = open('/Users/kimihirochin/Desktop/mesh/test_1_hemi_algo_sample_1.binvox', "xb")
+        new_model = binvox_rw.VoxelModel(np.array(out, dtype=int), model.dims, model.translate, model.scale, model.axis_order)
+        binvox_rw.write_binvox(new_model, new_f)
+
         exit()
 
     # for i in range (p):

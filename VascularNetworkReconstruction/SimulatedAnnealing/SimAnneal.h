@@ -2,7 +2,7 @@
 #define SA_H_
 
 double SA(double *, double *, double *, double *, int);
-double CostCal(double, double, double);
+double CostCal(double, double, double, int);
 int move(double *, double *, double *, double, double, double, double, double);
 int maxmin (double *, double *, double *, double *);
 double Diff(double, double, double);

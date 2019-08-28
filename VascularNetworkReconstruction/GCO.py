@@ -14,13 +14,13 @@ class GCO():
         self.root_r = r_init
         self.stable_nodes = self.VN.fixed
         self.leaves = self.VN.leaves
-        self.max_l = 2
+        self.max_l = 3
         self.merge_threshold = 0.1
         self.prune_threshold = 8
         self.optimizer = SA_Optimizer
         self.optimizer2 = GD_Optimizer
         self.use_C = True
-        self.max_iter_1 = 12
+        self.max_iter_1 = 15
         self.max_iter_2 = np.log2(len(self.leaves)) * 2
         self.cost_mode = 'PC'
         print("Max iter: %d" % self.max_iter_2)
@@ -48,16 +48,23 @@ class GCO():
         neighbor_num = len(neighbors)
         if neighbor_num <= 1:
             return
-        neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
-        root_idx = np.argmax(neighbor_radii)
+        # neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
+        # root_idx = np.argmax(neighbor_radii)
+        neighbor_order = np.array([self.VN.tree.nodes[n]['level'] for n in neighbors])
+        if -1 in neighbor_order:
+            root_idx = np.where(neighbor_order == -1)[0][0]
+        else:
+            root_idx = np.argmax(neighbor_order)
         non_root = neighbors[0]
         neighbors[0] = neighbors[root_idx]
         neighbors[root_idx] = non_root
         neighbor_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
         neighbor_locs = np.array([self.VN.tree.nodes[n]['loc'] for n in neighbors], dtype=float)
+        neighbor_order = np.array([self.VN.tree.nodes[n]['level'] for n in neighbors])
         print("\tnode %d old loc: %s" % (node, self.VN.tree.nodes[node]['loc']))
         print("\tnode %d neighbors: %s" % (node, neighbors))
         print("\tnode %d neighbor radii: %s" % (node, neighbor_radii))
+        print("\tnode %d neighbor order: %s" % (node, neighbor_order))
         if self.use_C:
             ret_list = SimAnneal.SA(neighbor_locs[:, 0].copy(), neighbor_locs[:, 1].copy(), neighbor_locs[:, 2].copy(), neighbor_radii)
             new_radii = np.array(ret_list[:neighbor_num])
@@ -114,8 +121,13 @@ class GCO():
     def split(self, node):
         neighbors = list(self.VN.tree.neighbors(node))
         neighbor_num = len(neighbors)
-        neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
-        root_idx = np.argmax(neighbor_edge_radii)
+        # neighbor_edge_radii = np.array([self.VN.tree[node][n]['radius'] for n in neighbors])
+        # root_idx = np.argmax(neighbor_edge_radii)
+        neighbor_order = np.array([self.VN.tree.nodes[n]['level'] for n in neighbors])
+        if -1 in neighbor_order:
+            root_idx = np.where(neighbor_order == -1)[0][0]
+        else:
+            root_idx = np.argmax(neighbor_order)
         edges_to_split, max_rs = self.split_two_edges(node, root_idx)
         # print("node %d split start: %s" % (node, edges_to_split))
         while True:
@@ -172,18 +184,19 @@ class GCO():
         else:
             return pull_force - new_edge_r ** 2 - new_edge_r ** (-4)
 
-    def local_opt(self):
+    def local_opt(self, i):
         self.VN.reorder_nodes()
         for n in range(len(self.VN.tree), 0, -1):
             if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.relax(n)
-        # self.visualize()
+        if i == self.max_iter_2:
+            return
         for n in range(len(self.VN.tree), 0, -1):
             if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
             self.merge(n)
-        # self.visualize()
+        self.VN.reorder_nodes()
         for n in range(len(self.VN.tree), 0, -1):
             if n in self.stable_nodes or n in self.leaves or n not in self.VN.tree.nodes:
                 continue
@@ -203,7 +216,7 @@ class GCO():
                 cost_before = self.global_cost()
                 print("\nItearation %d[%d]" % (cur_iter, i))
                 print("cost before: %f" % cost_before)
-                self.local_opt()
+                self.local_opt(i)
                 cost_after = self.global_cost()
                 print("cost after: %f" % cost_after)
                 diff_flag = (cost_before != cost_after)
@@ -212,23 +225,21 @@ class GCO():
             cur_level = self.VN.get_max_level()
             print("cur_level: %d" % cur_level)
             if cur_level >= self.prune_threshold and cur_iter < self.max_iter_1:
-                self.VN.prune(cur_l, 'HS')
-                # self.visualize(True, 'level')
+                self.VN.prune(cur_l, 'level')
                 count_l += 1
                 self.VN.reconnect()
                 print("connected component: %d" % nx.number_connected_components(self.VN.tree))
-                # self.visualize(True, 'level')
-            if count_l == 5:
+            if count_l == 4:
                 cur_l = 1 if cur_l == 1 else cur_l - 1
                 count_l = 0
             cur_iter += 1
-        # self.visualize()
+        self.VN.final_merge()
         print("final connected component: %d" % nx.number_connected_components(self.VN.tree))
         self.save_results()
         self.visualize()
         self.visualize(True, 'HS')
 
-    def visualize(self, with_label=False, mode='label'):
+    def visualize(self, with_label=False, mode='level'):
         dim = len(self.VN.tree.nodes[0]['loc'])
         if dim == 2:
             locs = nx.get_node_attributes(self.VN.tree,'loc')
@@ -286,7 +297,7 @@ class GCO():
             for n in connections:
                 n1, n2 = n[0], n[1]
                 r = radii[i]
-                mlab.plot3d([coords[n1][0], coords[n2][0]], [coords[n1][1], coords[n2][1]], [coords[n1][2], coords[n2][2]], tube_radius = 0.5 * r)
+                mlab.plot3d([coords[n1][0], coords[n2][0]], [coords[n1][1], coords[n2][1]], [coords[n1][2], coords[n2][2]], tube_radius = 0.05)
                 i += 1
 
             if not with_label:
@@ -298,37 +309,40 @@ class GCO():
             mlab.show()
 
     def save_results(self):
-        coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_coords.npy'
-        connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_connections.npy'
-        radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_radii.npy'
-        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_HS_order.npy'
-        level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_4_level_order.npy'
+        file_id = 10
+        coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_coords.npy' % file_id
+        connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_connections.npy' % file_id
+        radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_radii.npy' % file_id
+        order_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_HS_order.npy' % file_id
+        level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_level_order.npy' % file_id
         nodes = dict()
         coords = list()
         connections = list()
         radii = list()
+        order = list()
+        l_order = list()
+        self.VN.update_final_order('HS')
+        self.VN.update_final_order('level')
+        self.VN.update_final_radius()
         for edge in list(self.VN.tree.edges):
             node1, node2 = edge
             if not node1 in nodes:
                 nodes[node1] = len(coords)
                 coords.append(self.VN.tree.nodes[node1]['loc'])
+                order.append(self.VN.tree.nodes[node1]['HS'])
+                l_order.append(self.VN.tree.nodes[node1]['level'])
             if not node2 in nodes:
                 nodes[node2] = len(coords)
                 coords.append(self.VN.tree.nodes[node2]['loc'])
+                order.append(self.VN.tree.nodes[node2]['HS'])
+                l_order.append(self.VN.tree.nodes[node2]['level'])
             connections.append([nodes[node1], nodes[node2]])
-            radii.append(self.VN.tree[node1][node2]['radius'])
+            radii.append(abs(self.VN.tree[node1][node2]['radius']))
         np.save(coord_file, coords)
         np.save(connection_file, connections)
         np.save(radius_file, radii)
         print("Save coords, edges and radius.")
-
-        self.VN.update_final_order('HS')
-        self.VN.update_final_order('level')
-        order = np.zeros((len(coords)))
-        l_order = np.zeros((len(coords)))
-        for i in range(len(coords)):
-            order[nodes[i]]= self.VN.tree.nodes[i]['HS']
-            l_order[nodes[i]]= self.VN.tree.nodes[i]['level']
+        
         np.save(order_file, order)
         np.save(level_file, l_order)   
         print("Save orders.")     
@@ -405,5 +419,10 @@ if __name__ == '__main__':
     f_coords_2, _, new_edge_list_2 = read_coords_from_binvox(fixed_points_file_2, random_points_file, edge_file_2, offset=len(f_coords))
     f_coords = np.concatenate((f_coords, f_coords_2))
     new_edge_list = np.concatenate((new_edge_list, new_edge_list_2))
-    g = GCO(f_coords, r_coords, 2.5, 10, 2, new_edge_list)
+
+    # f_coords =[[0, -10, 0]]
+    # r_coords = generate_random_points()
+    # new_edge_list = []
+
+    g = GCO(f_coords, r_coords, 1.8, 10, 2, new_edge_list)
     g.GCO_opt()

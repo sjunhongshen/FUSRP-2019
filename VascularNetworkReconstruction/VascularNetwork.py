@@ -6,7 +6,7 @@ class VascularNetwork():
     def __init__(self, fixed, leaves, r_init, f_init, p_init, edge_list):
         self.tree = nx.Graph()
         self.root_r = r_init
-        self.r_0 = 0.5
+        self.r_0 = 0.4
         self.f_0 = f_init / len(leaves)
         self.p_0 = p_init
         self.k = 1
@@ -104,7 +104,14 @@ class VascularNetwork():
         f_sum = 0
         remaining_nodes = list(self.tree.neighbors(node))
         neighbor_edge_radii = np.array([self.tree[node][n]['radius'] for n in remaining_nodes])
-        root = remaining_nodes[np.argmax(neighbor_edge_radii)]
+        root1 = remaining_nodes[np.argmax(neighbor_edge_radii)]
+        neighbor_orders = np.array([self.tree.nodes[n]['level'] for n in remaining_nodes])
+        if -1 in neighbor_orders:
+            root = np.where(neighbor_orders == -1)[0][0]
+        else:
+            root = remaining_nodes[np.argmax(neighbor_orders)]
+        # if root1 != root:
+        #     print("max radius root: %d max order root: %d" % (root1, root))
         for n in nodes_to_split:
             remaining_nodes.remove(n)
         if root in remaining_nodes:
@@ -227,19 +234,6 @@ class VascularNetwork():
             self.tree.nodes[n][mode] = 1 if self.tree.degree[n] == 1 else 0
         count_no_label = self.node_count
         cur_order = 1
-        cycle_edges = []
-        try:
-            cycle_edges = list(nx.find_cycle(self.tree))
-        except:
-            pass
-        while len(cycle_edges) != 0:
-            print("cycle!")
-            self.tree.nodes[cycle_edges[0][0]][mode] = 1
-            cycle_edges = []
-            try:
-                cycle_edges = list(nx.find_cycle(self.tree))
-            except:
-                pass
         while count_no_label != 0:
             for node in self.tree.nodes:
                 if self.tree.nodes[node][mode] != 0 or len(list(self.tree.neighbors(node))) == 0:
@@ -251,6 +245,31 @@ class VascularNetwork():
                 max_count = np.count_nonzero(neighbor_orders == max_order)
                 self.tree.nodes[node][mode] = max_order if max_count == 1 and mode == 'HS' else max_order + 1
             count_no_label = np.count_nonzero(np.array([self.tree.nodes[n][mode] for n in self.tree.nodes]) == 0)
+
+    def update_final_radius(self):
+        print("update final radius...")
+        changed = []
+        i = 0
+        connected = nx.number_connected_components(self.tree)
+        while len(changed) != len(list(self.fixed)) - connected:
+            for node in self.fixed:
+                if node in changed: continue
+                if node not in self.tree.nodes:
+                    changed.append(node)
+                    continue 
+                neighbor_radii = np.array([self.tree[node][n]['radius'] for n in self.tree.neighbors(node)])
+                if np.count_nonzero(neighbor_radii == self.root_r) == 1:
+                    if i == 0:
+                        for n in self.tree.neighbors(node):
+                            if self.tree.nodes[n]['fixed']:
+                                self.tree[n][node]['radius'] = 0.5 + 0.3 * np.random.random()
+                    else:
+                        for n in self.tree.neighbors(node):
+                            if self.tree[n][node]['radius'] == self.root_r and n in list(self.fixed):
+                                self.tree[n][node]['radius'] = (np.sum(neighbor_radii ** self.c) - self.root_r ** self.c) ** (1 / self.c)
+                    changed.append(node)
+            i += 1
+        print("update final radius finished.")
 
     def get_max_level(self):
         return np.max(np.array([self.tree.nodes[n]['level'] for n in self.tree.nodes]))
@@ -270,6 +289,23 @@ class VascularNetwork():
     def get_max_stress(self, edge):
         node1, node2 = edge
         return (4 * self.mu * self.tree[node1][node2]['flow']) / (np.pi * self.tree[node1][node2]['radius'] ** 3)
+
+    def final_merge(self):
+        print("final merge")
+        merge_count = 0
+        for n in list(self.tree.nodes):
+            if n not in self.tree.nodes: continue
+            neighbors = list(self.tree.neighbors(n))
+            if len(neighbors) == 2:
+                n1, n2 = neighbors[0], neighbors[1]
+                s1 = (self.tree.nodes[n]['loc'] - self.tree.nodes[n1]['loc'])[1] / (self.tree.nodes[n]['loc'] - self.tree.nodes[n1]['loc'])[0]
+                s2 = (self.tree.nodes[n]['loc'] - self.tree.nodes[n2]['loc'])[1] / (self.tree.nodes[n]['loc'] - self.tree.nodes[n2]['loc'])[0]
+                if s1 == s2 and self.tree[n][n1]['radius'] == self.tree[n][n2]['radius']:
+                    merge_count += 1
+                    self.merge(n2, n)
+        print("final merge finish: reduce %d nodes" % merge_count)
+
+
 
 if __name__ == '__main__':
     VN = VascularNetwork((0,0),[(0,4),(4,0)],0.1,3,2)

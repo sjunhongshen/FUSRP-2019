@@ -27,7 +27,7 @@ double SA(double *x_given, double *y_given, double *z_given, double *r_given, in
     x[imax] = sumx / imax;
     y[imax] = sumy / imax;
     z[imax] = sumz / imax;
-    cold = CostCal(x[imax], y[imax], z[imax]);
+    cold = CostCal(x[imax], y[imax], z[imax], 1);
 
     // fp = fopen ("Data.csv","w");
     // if(fp == NULL){
@@ -48,7 +48,7 @@ double SA(double *x_given, double *y_given, double *z_given, double *r_given, in
         {
             maxmin(&rangex, &rangey, &rangez, &ranger);
             move(&xnew, &ynew, &znew, rangex, rangey, rangez, ranger, T);
-            cnew = CostCal(xnew, ynew, znew);
+            cnew = CostCal(xnew, ynew, znew, iter);
             if (cnew < cmin)
             {
                 cmin = cnew;
@@ -86,22 +86,21 @@ double SA(double *x_given, double *y_given, double *z_given, double *r_given, in
     return cmin;
 }
 
-double CostCal(double xp, double yp, double zp)
+double CostCal(double xp, double yp, double zp, int t)
 {
     int i;
     double cost = 0, lisq = 0, l[1024], mc = 0, pc = 0, pcin = 0, penalty = 0;
-    double w0 = 6, w1 = 1e3, w2 = 1;
+    double w0 = 642, w1 = 5e3, w2 = 1;
 
     for (i = 0; i < imax; i++)
     {
         lisq = pow((xp - x[i]), 2) + pow((yp - y[i]), 2) + pow((zp - z[i]), 2);
         l[i] = sqrt(lisq);
         mc += l[i] * pow(r[i], 2);
-        penalty += pow(get_max(0, r[i] - 2.5), 2) + pow(get_max(0, 0.5 - r[i]), 2);
+        penalty += pow(get_max(0, r[i] - 2), 2) + pow(get_max(0, 0.5 - r[i]), 2);
     }
     cost = w0 * mc + w1 * penalty + (w2 * l[0] / pow(r[0], 4));
-    // printf("mc: %f\n", w0 * mc);
-    // printf("p: %f\n", w1 * penalty);
+    
 
     for (i = 1; i < imax; i++)
     {
@@ -109,20 +108,19 @@ double CostCal(double xp, double yp, double zp)
     }
     pc = 1.0 / pcin;
     cost += w2 * pc;
-    // printf("cost: %f\n\n", cost);
     return cost;
 }
 
 int move(double *xnew,double *ynew,double *znew, double rangex, double rangey, double rangez, double ranger, double T)
 {
-    *xnew = x[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangex));
-    *ynew = y[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangey));
-    *znew = z[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * rangez));
+    *xnew = x[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * rangex);
+    *ynew = y[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * rangey);
+    *znew = z[imax] + (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * rangez);
 
     double r_sum = 0;
     for (int i = 1; i < imax; i++)
     {
-        r[i] += (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.05 * (T * ranger));
+        r[i] += (((2 * (double)rand() / (double)RAND_MAX) - 1) * 0.005 * (T * ranger));
         r_sum += pow(r[i], 3);
     }
     r[0] = pow(r_sum, 1.0 / 3.0);
@@ -164,20 +162,20 @@ int maxmin(double *rangex, double *rangey, double *rangez, double *ranger)
     return 0;
 }
 
-double Diff(double xn, double yn, double zn)
-{
-    int i;
-    double dco[4] = {0, 0, 0, 0};
+// double Diff(double xn, double yn, double zn)
+// {
+//     int i;
+//     double dco[4] = {0, 0, 0, 0};
 
-    for (i = 1;i <= 3;i++)
-    {
-        dco[i] = 0.0001;
-        d1[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / 2 * dco[i];
-        d2[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - 2 * CostCal(xn, yn, zn) + CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / pow(dco[i], 2);
-        dco[i] = 0;
-    }
-    return 0;
-}
+//     for (i = 1;i <= 3;i++)
+//     {
+//         dco[i] = 0.0001;
+//         d1[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / 2 * dco[i];
+//         d2[i] = (CostCal(xn + dco[1], yn + dco[2], zn + dco[3]) - 2 * CostCal(xn, yn, zn) + CostCal(xn - dco[1], yn - dco[2], zn - dco[3])) / pow(dco[i], 2);
+//         dco[i] = 0;
+//     }
+//     return 0;
+// }
 
 double get_coord(char c)
 {
