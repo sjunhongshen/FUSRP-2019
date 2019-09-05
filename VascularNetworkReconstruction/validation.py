@@ -77,6 +77,7 @@ class GCOAnalyzer():
 
     def histogram(self, content='Strahler', save=False):
         sns.set()
+        bins = None
         if content == 'Radius':
             data = self.radii 
             xlabel = "Vessel Radius (mium)"
@@ -85,7 +86,7 @@ class GCOAnalyzer():
             title = 'Vessel Radius'
             kde = True
         elif content == 'Diameter':
-            data = self.radii
+            data = self.radii * 2
             xlabel = r'Vessel Diameter ($mm$)'
             ylabel = "Relative Frequency"
             x_range = np.array(range(0, 40, 5)) / 10
@@ -94,17 +95,17 @@ class GCOAnalyzer():
             kde = True
         elif content == 'Log Diameter':
             from scipy.stats import norm
-            print(np.min(self.radii))
-            data = 1 / ((self.radii) ** 1/2)
-            print(np.max(data))
+            data = 1 / ((self.radii * 20) ** 1/2)
             xlabel = r'Inverse of Square Root Diameter $(mm)$'
             ylabel = "Relative Frequency"
-            x_range = np.array(list(range(0, 8)))
+            x_range = np.array(list(range(0, 6))) / 10
+            bins = np.array(list(range(0, 60))) / 100
             title = 'Inverse of Square Root Diameter'
-            plt.xlim((-1, 8))
+            plt.xlim((0, 0.6))
             kde = False
-            mu, std = norm.fit(data)
-            x = np.linspace(-1, 8, 100)
+            data2 = data[(data <= 0.5)]
+            mu, std = norm.fit(data2)
+            x = np.linspace(0, 0.6, 100)
             p = norm.pdf(x, mu, std)
             plt.plot(x, p, 'k', linewidth=2)
         elif content == 'Length':
@@ -140,7 +141,7 @@ class GCOAnalyzer():
 
         
         # plt.hist([data], color=[color])
-        sns.distplot([data], kde=kde, kde_kws={'bw':0.25}, norm_hist = True)
+        sns.distplot([data], bins=bins, kde=kde, kde_kws={'bw':0.25}, norm_hist = True)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         # plt.xlim((0, 4))
@@ -156,7 +157,7 @@ class GCOAnalyzer():
     def scatterplot(self, content="Length", save=False):
         if content == "Diameter":
             mean_r, mean_l = self.analyze_strahler()
-            raw_data = {'x': range(1, self.max_HS + 1), 'y': np.array(mean_r)}
+            raw_data = {'x': range(1, self.max_HS + 1), 'y': np.array(mean_r) * 2}
             df = pd.DataFrame(raw_data, index=range(1, self.max_HS + 1))
             title = 'Diameter v.s. Strahler Order'
             ylabel = 'Mean Diameter (mm)'
@@ -187,7 +188,7 @@ class GCOAnalyzer():
     def boxplot(self, save=False):
         raw_data = []
         for i in range(len(self.connections)):
-            hs = self.HS[i]
+            hs = self.HS[i] * 2
             r = self.radii[i]
             raw_data.append([hs, r])
         df = pd.DataFrame(raw_data, columns=['Strahler Order', 'Radius'])
@@ -217,7 +218,7 @@ class GCOAnalyzer():
 
 
 if __name__ == '__main__':
-    file_id = 6
+    file_id = 12
     coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_coords.npy' % file_id
     connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_connections.npy' % file_id
     radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_radii.npy' % file_id
@@ -225,8 +226,12 @@ if __name__ == '__main__':
     level_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_level_order.npy' % file_id
     analyzer = GCOAnalyzer(coord_file, connection_file, radius_file, HS_file, level_file, file_id)
     # analyzer.plot()
-    # analyzer.histogram("Length")
+    analyzer.histogram("Diameter")
     analyzer.histogram("Log Diameter")
-    # analyzer.scatterplot("Length")
+    analyzer.histogram("Length")
+    analyzer.histogram("Log Length")
+    
+    analyzer.scatterplot("Length")
+    analyzer.scatterplot("Diameter")
     # analyzer.analyze_strahler()
     # analyzer.reconstruct_model()

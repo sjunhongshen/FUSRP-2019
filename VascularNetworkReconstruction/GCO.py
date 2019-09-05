@@ -21,7 +21,7 @@ class GCO():
         self.optimizer2 = GD_Optimizer
         self.use_C = True
         self.max_iter_1 = 15
-        self.max_iter_2 = np.log2(len(self.leaves)) * 2
+        self.max_iter_2 = np.log2(len(self.leaves)) * 2 + 3
         self.cost_mode = 'PC'
         print("Max iter: %d" % self.max_iter_2)
         print("Num fixed: %d  Num leaf: %d" % (len(self.stable_nodes), len(self.leaves)))
@@ -297,7 +297,7 @@ class GCO():
             for n in connections:
                 n1, n2 = n[0], n[1]
                 r = radii[i]
-                mlab.plot3d([coords[n1][0], coords[n2][0]], [coords[n1][1], coords[n2][1]], [coords[n1][2], coords[n2][2]], tube_radius = 0.05)
+                mlab.plot3d([coords[n1][0], coords[n2][0]], [coords[n1][1], coords[n2][1]], [coords[n1][2], coords[n2][2]], tube_radius = 0.5 * r)
                 i += 1
 
             if not with_label:
@@ -309,7 +309,7 @@ class GCO():
             mlab.show()
 
     def save_results(self):
-        file_id = 10
+        file_id = 13
         coord_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_coords.npy' % file_id
         connection_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_connections.npy' % file_id
         radius_file = '/Users/kimihirochin/Desktop/mesh/test_1_result_%d_radii.npy' % file_id

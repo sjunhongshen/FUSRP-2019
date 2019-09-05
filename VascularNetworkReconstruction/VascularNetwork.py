@@ -6,7 +6,7 @@ class VascularNetwork():
     def __init__(self, fixed, leaves, r_init, f_init, p_init, edge_list):
         self.tree = nx.Graph()
         self.root_r = r_init
-        self.r_0 = 0.4
+        self.r_0 = 0.5
         self.f_0 = f_init / len(leaves)
         self.p_0 = p_init
         self.k = 1
@@ -33,7 +33,7 @@ class VascularNetwork():
             for i in range(5):
                 for edge in list(self.tree.edges):
                     node1, node2 = edge
-                    if np.linalg.norm(self.tree.nodes[node1]['loc'] - self.tree.nodes[node2]['loc']) <= 5: continue
+                    if np.linalg.norm(self.tree.nodes[node1]['loc'] - self.tree.nodes[node2]['loc']) <= 6: continue
                     loc = (self.tree.nodes[node1]['loc'] + self.tree.nodes[node2]['loc']) / 2
                     self.split(node1, loc, [node2])
                     level_map[self.node_count - 1] = len(self.fixed) + count
@@ -262,7 +262,7 @@ class VascularNetwork():
                     if i == 0:
                         for n in self.tree.neighbors(node):
                             if self.tree.nodes[n]['fixed']:
-                                self.tree[n][node]['radius'] = 0.5 + 0.3 * np.random.random()
+                                self.tree[n][node]['radius'] = 0.4 + 0.5 * np.random.random()
                     else:
                         for n in self.tree.neighbors(node):
                             if self.tree[n][node]['radius'] == self.root_r and n in list(self.fixed):
