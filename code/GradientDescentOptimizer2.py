@@ -1,5 +1,5 @@
 """
-Author: Yifan Jiang (yifanyifan.jiang@mail.utoronto.ca)
+Author: Yifan Jiang (yifanyifan.jiang@mail.utoronto.ca) Junhong Shen (jhshen@g.ucla.edu)
 
 Description: Given a bifurcation, finds the optimal position of the branching point
     and the optimal radii.
